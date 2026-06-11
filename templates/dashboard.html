@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>📊 Dashboard</h1>
+  <div style="display:flex;gap:10px;">
+    <button class="btn btn-ghost" onclick="stopAudio()" id="btnStopPage">⏹ Stop</button>
+    <button class="btn btn-primary" onclick="showModal('modalTestBel')" id="btnTestBel">🔔 Test Bel</button>
+  </div>
+</div>
+
+<!-- Live Clock -->
+<div class="clock-card">
+  <div class="clock-display">
+    <div id="liveClock" class="clock-time">00:00:00</div>
+    <div id="liveDate" class="clock-date">Memuat...</div>
+  </div>
+  <div class="clock-status">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Sistem Aktif</span>
+  </div>
+</div>
+
+{% if libur %}
+<div class="alert alert-warning">
+  ⚠️ <strong>Hari Libur:</strong> {{ libur.keterangan or 'Tidak ada jadwal hari ini' }}. Semua bel dinonaktifkan.
+</div>
+{% endif %}
+
+<!-- Stat Cards -->
+<div class="cards-row">
+  <div class="stat-card">
+    <div class="stat-icon">📅</div>
+    <div class="stat-info">
+      <div class="stat-value">{{ jadwal_hari_ini | length }}</div>
+      <div class="stat-label">Jadwal Hari Ini</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">⏰</div>
+    <div class="stat-info">
+      <div class="stat-value" id="nextBellTime">—</div>
+      <div class="stat-label">Bel Berikutnya</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon">🎵</div>
+    <div class="stat-info">
+      <div class="stat-value" id="playingStatus">Idle</div>
+      <div class="stat-label">Status Audio</div>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Today -->
+<div class="section">
+  <h2 class="section-title">📋 Jadwal Bel Hari Ini</h2>
+  {% if jadwal_hari_ini %}
+  <div class="schedule-list">
+    {% for j in jadwal_hari_ini %}
+    <div class="schedule-item {% if j.waktu <= now.strftime('%H:%M') %}passed{% endif %}">
+      <div class="schedule-time">{{ j.waktu }}</div>
+      <div class="schedule-info">
+        <div class="schedule-name">{{ j.nama }}</div>
+        <div class="schedule-audio">
+          {% if j.audio %}
+            {% if j.audio.tipe == 'youtube' %}▶{% else %}🔔{% endif %}
+            {{ j.audio.nama }}
+            · {{ j.durasi_menit }} menit
+          {% else %}
+            <em>Tanpa audio</em>
+          {% endif %}
+        </div>
+      </div>
+      <div class="schedule-badge {% if j.waktu <= now.strftime('%H:%M') %}badge-done{% else %}badge-upcoming{% endif %}">
+        {% if j.waktu <= now.strftime('%H:%M') %}✓ Lewat{% else %}⏳ Menunggu{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Tidak ada jadwal bel hari ini.</p>
+    <a href="{{ url_for('jadwal_page') }}" class="btn btn-primary">+ Tambah Jadwal</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Activity Log -->
+<div class="section">
+  <h2 class="section-title">📝 Log Aktivitas Terbaru</h2>
+  <div class="log-list">
+    {% for log in log_terbaru %}
+    <div class="log-item">
+      <span class="log-time">{{ log.waktu.strftime('%H:%M:%S') }}</span>
+      <span class="log-action">{{ log.aksi }}</span>
+      <span class="log-status status-{{ log.status | lower }}">{{ log.status }}</span>
+    </div>
+    {% else %}
+    <div class="log-empty">Belum ada aktivitas hari ini.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Modal Test Bel -->
+<div class="modal" id="modalTestBel">
+  <div class="modal-backdrop" onclick="closeModal('modalTestBel')"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>🔔 Test Bel</h3>
+      <button onclick="closeModal('modalTestBel')">✕</button>
+    </div>
+    <div class="form-group" style="padding-top:16px;">
+      <label>Pilih Audio (opsional)</label>
+      <select id="testAudioSelect">
+        <option value="">— Bunyikan tanpa audio —</option>
+        {% for j in jadwal_hari_ini if j.audio %}
+        <option value="{{ j.audio.id }}">
+          {% if j.audio.tipe == 'youtube' %}▶{% else %}🔔{% endif %}
+          {{ j.audio.nama }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modalTestBel')">Batal</button>
+      <button class="btn btn-primary" onclick="doTestBel()">🔔 Bunyikan Sekarang</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  window.jadwalHariIni = {{ jadwal_hari_ini | map(attribute='waktu') | list | tojson }};
+
+  async function doTestBel() {
+    const audioId = document.getElementById('testAudioSelect').value || null;
+    await testBel(audioId ? parseInt(audioId) : null);
+    closeModal('modalTestBel');
+  }
+</script>
+{% endblock %}

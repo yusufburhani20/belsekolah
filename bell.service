@@ -1,0 +1,17 @@
+[Unit]
+Description=Bell Sekolah — Sistem Bel Otomatis
+After=network.target sound.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/bell
+ExecStart=/usr/bin/python3 /opt/bell/app.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

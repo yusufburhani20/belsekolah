@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Jadwal Bel{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>📅 Jadwal Bel</h1>
+  <button class="btn btn-primary" onclick="showModal('modalTambahJadwal')" id="btnTambahJadwal">
+    + Tambah Jadwal
+  </button>
+</div>
+
+<!-- Jadwal Table -->
+<div class="table-card">
+  {% if jadwal_list %}
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Waktu</th>
+        <th>Nama</th>
+        <th>Hari</th>
+        <th>Audio</th>
+        <th>Durasi</th>
+        <th>Aktif</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for j in jadwal_list %}
+      <tr id="jadwal-row-{{ j.id }}">
+        <td><span class="time-badge">{{ j.waktu }}</span></td>
+        <td><strong>{{ j.nama }}</strong></td>
+        <td><span class="hari-badge">{{ j.hari | hari_label }}</span></td>
+        <td>
+          {% if j.audio %}
+            {% if j.audio.tipe == 'youtube' %}▶{% else %}🔔{% endif %}
+            {{ j.audio.nama }}
+          {% else %}
+            <span style="color:var(--text-faint)">—</span>
+          {% endif %}
+        </td>
+        <td>{{ j.durasi_menit }} mnt</td>
+        <td>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-{{ j.id }}"
+                   {% if j.aktif %}checked{% endif %}
+                   onchange="toggleJadwal({{ j.id }}, this)">
+            <span class="toggle-slider"></span>
+          </label>
+        </td>
+        <td class="action-btns">
+          <button class="btn-icon" title="Test"
+                  onclick="testBel({{ j.audio.id if j.audio else 'null' }})">▶</button>
+          <button class="btn-icon btn-danger" title="Hapus"
+                  onclick="hapusJadwal({{ j.id }}, this)">🗑</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <div class="empty-icon">📭</div>
+    <p>Belum ada jadwal bel. Tambahkan jadwal pertama!</p>
+    <button class="btn btn-primary" onclick="showModal('modalTambahJadwal')">+ Tambah Jadwal</button>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal Tambah Jadwal -->
+<div class="modal" id="modalTambahJadwal">
+  <div class="modal-backdrop" onclick="closeModal('modalTambahJadwal')"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>+ Tambah Jadwal Bel</h3>
+      <button onclick="closeModal('modalTambahJadwal')">✕</button>
+    </div>
+    <form id="formTambahJadwal">
+      <div class="form-group" style="padding-top:16px;">
+        <label>Nama Jadwal *</label>
+        <input type="text" id="jNama" placeholder="Contoh: Bel Masuk Pagi" required>
+      </div>
+      <div class="form-group">
+        <label>Waktu *</label>
+        <input type="time" id="jWaktu" required>
+      </div>
+      <div class="form-group">
+        <label>Hari Aktif *</label>
+        <div class="day-selector">
+          <label class="day-check"><input type="checkbox" name="hari" value="1"><span>Sen</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="2"><span>Sel</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="4"><span>Rab</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="8"><span>Kam</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="16"><span>Jum</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="32"><span>Sab</span></label>
+          <label class="day-check"><input type="checkbox" name="hari" value="64"><span>Min</span></label>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectAllDays(1+2+4+8+16)">Sen–Jum</button>
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectAllDays(1+2+4+8+16+32)">Sen–Sab</button>
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectAllDays(127)">Semua</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Audio</label>
+        <select id="jAudio">
+          <option value="">— Tanpa Audio —</option>
+          {% for a in audio_list %}
+          <option value="{{ a.id }}">
+            {% if a.tipe == 'youtube' %}▶ {% else %}🔔 {% endif %}{{ a.nama }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Durasi Putar (menit)</label>
+        <input type="number" id="jDurasi" value="1" min="1" max="60">
+        <small style="color:var(--text-muted);font-size:0.72rem;display:block;margin-top:4px;">
+          Untuk musik YouTube istirahat, isi sesuai durasi istirahat (mis. 15 menit).
+        </small>
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('modalTambahJadwal')" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btnSimpanJadwal">💾 Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function selectAllDays(mask) {
+  document.querySelectorAll('input[name="hari"]').forEach(cb => {
+    cb.checked = (mask & parseInt(cb.value)) > 0;
+  });
+}
+</script>
+{% endblock %}

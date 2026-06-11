@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% block title %}Pengaturan{% endblock %}
+
+{% block content %}
+
+<div class="page-header">
+  <h1>⚙️ Pengaturan</h1>
+</div>
+
+<div class="settings-grid">
+
+  <!-- ── Kalender Libur ────────────────────────────────────────────────────── -->
+  <div class="settings-card">
+    <h2>📆 Kalender Hari Libur</h2>
+    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+      Pada hari libur yang terdaftar, semua bel akan dinonaktifkan otomatis.
+    </p>
+
+    <form id="formTambahLibur">
+      <div class="form-row">
+        <input type="date" id="liburTanggal" required style="flex:1;">
+        <input type="text" id="liburKet" placeholder="Keterangan (opsional)" style="flex:2;">
+        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">+ Tambah</button>
+      </div>
+    </form>
+
+    <div class="libur-list" id="liburList">
+      {% if libur_list %}
+        {% for libur in libur_list %}
+        <div class="libur-item" id="libur-{{ libur.id }}">
+          <span class="libur-date">{{ libur.tanggal.strftime('%d %b %Y') }}</span>
+          <span class="libur-ket">{{ libur.keterangan or '—' }}</span>
+          <button class="btn-icon btn-danger" onclick="hapusLibur({{ libur.id }})" title="Hapus">🗑</button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty-hint" id="emptyLibur">Belum ada hari libur terdaftar.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- ── Info & Deployment ─────────────────────────────────────────────────── -->
+  <div>
+
+    <!-- Info Sistem -->
+    <div class="settings-card" style="margin-bottom:16px;">
+      <h2>ℹ️ Info Sistem</h2>
+      <div class="info-list">
+        <div class="info-item">
+          <span class="info-label">Platform</span>
+          <span class="info-value">HG680P · Armbian Linux</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Framework</span>
+          <span class="info-value">Flask + APScheduler</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Database</span>
+          <span class="info-value">SQLite (bell.db)</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Web Port</span>
+          <span class="info-value">5000</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Timezone</span>
+          <span class="info-value">Asia/Jakarta (WIB)</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Audio Output</span>
+          <span class="info-value">ALSA / PulseAudio → Ampli</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Systemd Autostart -->
+    <div class="settings-card">
+      <h2>🚀 Autostart (systemd)</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
+        Jalankan perintah ini di terminal HG680P agar Bell System otomatis aktif saat boot:
+      </p>
+
+      <p style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin-bottom:6px;">
+        1. Install service
+      </p>
+      <div class="code-block">
+        <pre>sudo cp /opt/bell/bell.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable bell
+sudo systemctl start bell</pre>
+      </div>
+
+      <p style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin:12px 0 6px;">
+        2. Cek status
+      </p>
+      <div class="code-block">
+        <pre>sudo systemctl status bell
+sudo journalctl -u bell -f</pre>
+      </div>
+
+      <p style="font-size:0.78rem;font-weight:600;color:var(--text-muted);margin:12px 0 6px;">
+        3. Install dependensi sistem
+      </p>
+      <div class="code-block">
+        <pre>sudo apt install mpv mpg123 alsa-utils -y
+pip3 install -r /opt/bell/requirements.txt</pre>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
