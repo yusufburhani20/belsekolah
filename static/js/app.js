@@ -450,3 +450,358 @@ async function hapusLibur(id) {
     document.getElementById(`libur-${id}`)?.remove();
   }
 }
+
+// ─── Settings page & General settings sync ──────────────────────────────────
+(async function initSettings() {
+  const audioSelect = document.getElementById('settingAudioDevice');
+  const slider = document.getElementById('volumeSlider');
+  const valEl = document.getElementById('volumeValue');
+  
+  try {
+    const settings = await api('GET', '/api/settings');
+    
+    if (slider && settings.volume !== undefined) {
+      slider.value = settings.volume;
+      if (valEl) valEl.textContent = `${settings.volume}%`;
+    }
+    
+    if (audioSelect) {
+      const devicesData = await api('GET', '/api/audio-devices');
+      audioSelect.innerHTML = '';
+      devicesData.devices.forEach(dev => {
+        const opt = document.createElement('option');
+        opt.value = dev.id;
+        opt.textContent = dev.name;
+        if (dev.id === settings.audio_device) {
+          opt.selected = true;
+        }
+        audioSelect.appendChild(opt);
+      });
+      
+      await loadNetworkStatus();
+      await loadUsers();
+    }
+  } catch (err) {
+    console.error("Settings sync error:", err);
+  }
+})();
+
+async function saveAudioDeviceSetting() {
+  const select = document.getElementById('settingAudioDevice');
+  if (!select) return;
+  
+  const dev = select.value;
+  const btn = document.getElementById('btnSaveAudioDevice');
+  if (btn) btn.disabled = true;
+  
+  try {
+    const res = await api('POST', '/api/settings', { audio_device: dev });
+    if (res.status === 'ok') {
+      showToast('✅ Audio output berhasil disimpan!', 'success');
+    } else {
+      showToast('Gagal menyimpan perangkat audio', 'error');
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function loadNetworkStatus() {
+  const lanIp = document.getElementById('lanIp');
+  const lanBadge = document.getElementById('lanBadge');
+  const wifiIp = document.getElementById('wifiIp');
+  const wifiBadge = document.getElementById('wifiBadge');
+  
+  if (!lanIp) return;
+  
+  try {
+    const status = await api('GET', '/api/network/status');
+    
+    if (status.lan.status === 'connected') {
+      lanIp.textContent = status.lan.ip || 'Terhubung (IP tidak diketahui)';
+      lanBadge.textContent = 'Online';
+      lanBadge.className = 'net-badge connected';
+    } else {
+      lanIp.textContent = 'Kabel terputus / Tidak aktif';
+      lanBadge.textContent = 'Offline';
+      lanBadge.className = 'net-badge disconnected';
+    }
+    
+    if (status.wifi.status === 'connected') {
+      wifiIp.textContent = `${status.wifi.ip || 'Terhubung'} (${status.wifi.ssid || 'SSID tidak diketahui'})`;
+      wifiBadge.textContent = 'Online';
+      wifiBadge.className = 'net-badge connected';
+    } else {
+      wifiIp.textContent = 'Tidak terhubung';
+      wifiBadge.textContent = 'Offline';
+      wifiBadge.className = 'net-badge disconnected';
+    }
+  } catch (err) {
+    console.error("Gagal memuat status jaringan:", err);
+  }
+}
+
+async function scanWifiNetworks() {
+  const container = document.getElementById('wifiListContainer');
+  const btn = document.getElementById('btnScanWifi');
+  if (!container) return;
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '🔄 Memindai...';
+  }
+  
+  container.innerHTML = '<div class="wifi-loading"><div class="spinner"></div> Memindai jaringan Wi-Fi...</div>';
+  
+  try {
+    const data = await api('GET', '/api/network/wifi/scan');
+    
+    if (!data.networks || data.networks.length === 0) {
+      container.innerHTML = '<p class="empty-hint">Tidak ada jaringan Wi-Fi terdeteksi.</p>';
+      return;
+    }
+    
+    container.innerHTML = data.networks.map(net => {
+      const isConnected = net.active;
+      const signalClass = net.signal >= 75 ? 'sig-strong' : (net.signal >= 45 ? 'sig-medium' : 'sig-weak');
+      const actionBtn = isConnected 
+        ? `<span style="color:var(--text-success); font-weight:bold; font-size:0.85rem;">Terhubung ✅</span>`
+        : `<button class="btn btn-primary" style="padding: 4px 10px; font-size:0.75rem;" onclick="promptConnectWifi('${escHtml(net.ssid)}')">Hubungkan</button>`;
+      
+      return `
+        <div class="wifi-item">
+          <div class="wifi-name-section">
+            <span class="wifi-icon ${signalClass}">📶</span>
+            <span class="wifi-ssid">${escHtml(net.ssid)}</span>
+            <span style="font-size:0.7rem; color:var(--text-muted); margin-left:8px;">(${net.security})</span>
+          </div>
+          <div class="wifi-action-section">
+            <span style="font-size:0.8rem; color:var(--text-muted); margin-right:12px;">${net.signal}%</span>
+            ${actionBtn}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<p class="empty-hint" style="color:var(--text-danger);">Gagal memindai: ${err.message}</p>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '🔄 Pindai';
+    }
+  }
+}
+
+function promptConnectWifi(ssid) {
+  const targetSsidEl = document.getElementById('wifiTargetSsid');
+  const ssidInput = document.getElementById('wifiSsidInput');
+  const passwordInput = document.getElementById('wifiPasswordInput');
+  
+  if (targetSsidEl) targetSsidEl.textContent = ssid;
+  if (ssidInput) ssidInput.value = ssid;
+  if (passwordInput) passwordInput.value = '';
+  
+  showModal('modalConnectWifi');
+}
+
+(function initConnectWifiForm() {
+  const form = document.getElementById('formConnectWifi');
+  if (!form) return;
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const ssid = document.getElementById('wifiSsidInput').value;
+    const password = document.getElementById('wifiPasswordInput').value;
+    const btn = document.getElementById('btnWifiConnectSubmit');
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Menghubungkan...';
+    }
+    
+    showToast(`Mencoba terhubung ke ${ssid}...`, 'info');
+    
+    try {
+      const res = await api('POST', '/api/network/wifi/connect', { ssid, password });
+      if (res.status === 'ok') {
+        showToast(`✅ Berhasil: ${res.message}`, 'success');
+        closeModal('modalConnectWifi');
+        await loadNetworkStatus();
+        await scanWifiNetworks();
+      } else {
+        showToast(`❌ Gagal: ${res.message}`, 'error');
+      }
+    } catch (err) {
+      showToast(`❌ Error: ${err.message}`, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Hubungkan';
+      }
+    }
+  });
+})();
+
+// ─── User Management functions ──────────────────────────────────────────────
+async function loadUsers() {
+  const container = document.getElementById('userListContainer');
+  if (!container) return;
+  
+  try {
+    const users = await api('GET', '/api/users');
+    
+    if (!users || users.length === 0) {
+      container.innerHTML = '<p class="empty-hint">Belum ada pengguna terdaftar.</p>';
+      return;
+    }
+    
+    container.innerHTML = users.map(u => {
+      return `
+        <div class="user-item" id="user-item-${u.id}" style="display:flex; justify-content:space-between; align-items:center; padding:10px 12px; background:var(--bg-input); border-radius:var(--radius-sm); margin-bottom:8px; border:1px solid var(--border);">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-size:1.1rem;">👤</span>
+            <span style="font-weight:600; font-size:0.875rem;">${escHtml(u.username)}</span>
+            <span style="font-size:0.7rem; background:rgba(109,40,217,0.1); color:var(--accent-1); padding:2px 6px; border-radius:10px;">${escHtml(u.role)}</span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="btn-icon" onclick="promptEditUser(${u.id}, '${escHtml(u.username)}')" title="Edit User">✏️</button>
+            <button class="btn-icon btn-danger" onclick="hapusUser(${u.id}, this)" title="Hapus User">🗑</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    container.innerHTML = `<p class="empty-hint" style="color:var(--text-danger);">Gagal memuat: ${err.message}</p>`;
+  }
+}
+
+function promptEditUser(id, username) {
+  const idInput = document.getElementById('editUserIdInput');
+  const usernameInput = document.getElementById('editUsername');
+  const passwordInput = document.getElementById('editPassword');
+  
+  if (idInput) idInput.value = id;
+  if (usernameInput) usernameInput.value = username;
+  if (passwordInput) passwordInput.value = '';
+  
+  showModal('modalEditUser');
+}
+
+async function hapusUser(id, btnElement) {
+  if (!btnElement) {
+    if (!confirm('Hapus pengguna ini?')) return;
+    performDeleteUser(id);
+    return;
+  }
+  if (btnElement.dataset.confirming === "true") {
+    clearTimeout(deleteTimeouts['u_' + id]);
+    performDeleteUser(id);
+  } else {
+    btnElement.dataset.confirming = "true";
+    btnElement.innerHTML = "⚠️ Yakin?";
+    btnElement.style.width = "auto";
+    btnElement.style.padding = "0 8px";
+    btnElement.style.fontSize = "0.75rem";
+    deleteTimeouts['u_' + id] = setTimeout(() => {
+      btnElement.dataset.confirming = "false";
+      btnElement.innerHTML = "🗑";
+      btnElement.style.width = "";
+      btnElement.style.padding = "";
+      btnElement.style.fontSize = "";
+    }, 3000);
+  }
+}
+
+async function performDeleteUser(id) {
+  try {
+    const res = await api('DELETE', `/api/users/${id}`);
+    if (res.status === 'ok') {
+      showToast('✅ Pengguna berhasil dihapus!', 'success');
+      document.getElementById(`user-item-${id}`)?.remove();
+    } else {
+      showToast(res.message || 'Gagal menghapus pengguna', 'error');
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  }
+}
+
+// Handler form tambah user
+(function initTambahUserForm() {
+  const form = document.getElementById('formTambahUser');
+  if (!form) return;
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const username = document.getElementById('newUsername').value.trim();
+    const password = document.getElementById('newPassword').value;
+    const btn = document.getElementById('btnTambahUserSubmit');
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Menyimpan...';
+    }
+    
+    try {
+      const res = await api('POST', '/api/users', { username, password });
+      if (res.status === 'ok') {
+        showToast('✅ Pengguna berhasil ditambahkan!', 'success');
+        closeModal('modalTambahUser');
+        await loadUsers();
+      } else {
+        showToast(`❌ Gagal: ${res.message}`, 'error');
+      }
+    } catch (err) {
+      showToast(`❌ Error: ${err.message}`, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Simpan';
+      }
+    }
+  });
+})();
+
+// Handler form edit user
+(function initEditUserForm() {
+  const form = document.getElementById('formEditUser');
+  if (!form) return;
+  
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('editUserIdInput').value;
+    const username = document.getElementById('editUsername').value.trim();
+    const password = document.getElementById('editPassword').value;
+    const btn = document.getElementById('btnEditUserSubmit');
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Menyimpan...';
+    }
+    
+    try {
+      const res = await api('PUT', `/api/users/${id}`, { username, password });
+      if (res.status === 'ok') {
+        showToast('✅ Pengguna berhasil diperbarui!', 'success');
+        closeModal('modalEditUser');
+        await loadUsers();
+      } else {
+        showToast(`❌ Gagal: ${res.message}`, 'error');
+      }
+    } catch (err) {
+      showToast(`❌ Error: ${err.message}`, 'error');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Simpan';
+      }
+    }
+  });
+})();
+
+// ─── Sidebar Mobile Toggle ───────────────────────────────────────────────────
+function toggleSidebar() {
+  document.body.classList.toggle('sidebar-open');
+}

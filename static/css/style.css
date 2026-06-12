@@ -843,15 +843,357 @@ input, select, textarea { font-family: inherit; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ─── Mobile Elements ───────────────────────────────────────────────────────── */
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 900;
+}
+.menu-toggle {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 4px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+.menu-toggle:hover {
+  background: var(--bg-card-hover);
+}
+.mobile-brand {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent-1);
+  letter-spacing: -0.02em;
+}
+.btn-stop-mobile {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  color: var(--red);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn-stop-mobile:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 998;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
 /* ─── Responsive ────────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .cards-row { grid-template-columns: 1fr 1fr; }
   .settings-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   :root { --sidebar-w: 0px; }
-  .sidebar { display: none; }
-  .main-content { margin-left: 0; }
-  .cards-row { grid-template-columns: 1fr; }
-  .clock-time { font-size: 2.5rem; }
+  
+  .mobile-header {
+    display: flex;
+  }
+  
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -280px;
+    width: 260px;
+    height: 100vh;
+    z-index: 1000;
+    box-shadow: 4px 0 15px rgba(0, 0, 0, 0.15);
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    border-right: 1px solid var(--border);
+  }
+  
+  body.sidebar-open {
+    overflow: hidden;
+  }
+  
+  body.sidebar-open .sidebar {
+    left: 0;
+  }
+  
+  body.sidebar-open .sidebar-overlay {
+    display: block;
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  .main-content {
+    margin-left: 0;
+  }
+  
+  .content-wrapper {
+    padding: 20px 16px;
+  }
+  
+  .cards-row {
+    grid-template-columns: 1fr;
+  }
+  
+  .clock-card {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    text-align: center;
+    padding: 24px 16px;
+  }
+  
+  .clock-time {
+    font-size: 2.8rem;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .table-card {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .form-row, .search-box, .url-input-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .form-row input, .form-row select, .form-row button,
+  .search-box input, .search-box button,
+  .url-input-row input, .url-input-row button {
+    width: 100% !important;
+  }
 }
+
+/* ─── Network Status & Wi-Fi List ────────────────────────────────────────────── */
+.network-status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 8px;
+}
+.net-status-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+.net-icon {
+  font-size: 1.4rem;
+}
+.net-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.net-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+.net-ip {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  margin-top: 2px;
+}
+.net-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.net-badge.connected {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--green);
+}
+.net-badge.disconnected {
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--text-faint);
+}
+
+.wifi-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 250px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  background: var(--bg-base);
+}
+.wifi-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition);
+}
+.wifi-item:hover {
+  border-color: var(--border-focus);
+}
+.wifi-name-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.wifi-icon {
+  font-size: 0.95rem;
+}
+.wifi-icon.sig-strong { color: var(--green); }
+.wifi-icon.sig-medium { color: var(--yellow); }
+.wifi-icon.sig-weak { color: var(--red); }
+.wifi-ssid {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wifi-action-section {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.wifi-loading {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 24px;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.wifi-loading .spinner {
+  border: 2px solid rgba(109, 40, 217, 0.2);
+  border-top-color: var(--accent-1);
+}
+
+/* ─── Login Page Styles ──────────────────────────────────────────────────────── */
+.login-body {
+  background-color: var(--bg-base);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.login-wrapper {
+  width: 100%;
+  max-width: 400px;
+}
+.login-card {
+  background-color: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+.login-header-section {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.login-brand-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--accent-grad);
+  color: #fff;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 12px;
+}
+.login-header-section h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--accent-1);
+  margin-bottom: 4px;
+}
+.login-header-section p {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+.login-error-alert {
+  background-color: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-left: 3px solid var(--red);
+  color: #f87171;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.82rem;
+  font-weight: 500;
+  margin-bottom: 20px;
+}
+.login-form-group {
+  display: flex;
+  flex-direction: column;
+}
+.login-form-group label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.login-form-group input {
+  padding: 9px 13px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.login-form-group input:focus {
+  border-color: var(--border-focus);
+}
+.login-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 0.72rem;
+  color: var(--text-faint);
+}
+
+

@@ -44,6 +44,11 @@
          id="nav-pengaturan">
         <span class="nav-icon">⚙️</span><span>Pengaturan</span>
       </a>
+      <a href="{{ url_for('logout') }}"
+         class="nav-item"
+         id="nav-logout">
+        <span class="nav-icon">🚪</span><span>Keluar</span>
+      </a>
     </nav>
 
     <div class="sidebar-controls">
@@ -56,8 +61,18 @@
     </div>
   </aside>
 
+  <!-- Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
   <!-- ── Main ────────────────────────────────────────────────────────────── -->
   <main class="main-content">
+    <!-- Mobile Header -->
+    <header class="mobile-header">
+      <button class="menu-toggle" id="menuToggle" onclick="toggleSidebar()" aria-label="Toggle Menu">☰</button>
+      <div class="mobile-brand">🔔 Bell System</div>
+      <button class="btn-stop-mobile" onclick="stopAudio()">⏹ Stop</button>
+    </header>
+
     <div class="content-wrapper">
       {% block content %}{% endblock %}
     </div>

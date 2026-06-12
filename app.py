@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, session, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 import os
 import logging
@@ -6,7 +6,7 @@ import yt_dlp
 from werkzeug.utils import secure_filename
 
 from config import DATABASE_URI, SOUNDS_DIR, SECRET_KEY
-from models import db, Jadwal, Profil, AudioFile, KalenderLibur, LogAktivitas
+from models import db, Jadwal, Profil, AudioFile, KalenderLibur, LogAktivitas, Pengaturan, User
 from audio import audio_engine
 from scheduler import init_scheduler, shutdown_scheduler
 
@@ -58,6 +58,21 @@ with app.app_context():
         db.session.add(AudioFile(nama='Sample Bell', path=sample_path, tipe='lokal'))
         db.session.commit()
         logger.info("Default audio seeded")
+
+    if User.query.count() == 0:
+        admin_user = User(username='admin')
+        admin_user.set_password('admin')
+        db.session.add(admin_user)
+        db.session.commit()
+        logger.info("Default admin user seeded")
+
+    # Restore volume from settings on startup
+    try:
+        vol = Pengaturan.get_val('volume', '80')
+        audio_engine.set_volume(int(vol))
+        logger.info(f"Volume system restored to {vol}% on startup")
+    except Exception as e:
+        logger.error(f"Failed to restore initial volume settings: {e}")
 
 reload_jadwal = init_scheduler(app, db, audio_engine)
 
@@ -354,6 +369,470 @@ def api_log():
         'aksi': l.aksi,
         'status': l.status,
     } for l in logs])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API — SETTINGS & NETWORK
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Audio devices scanner helper
+def get_audio_devices():
+    import subprocess
+    devices = [{'id': 'default', 'name': 'Default Output Device'}]
+    if os.name == 'nt':
+        try:
+            ps_cmd = "Get-CimInstance Win32_SoundDevice | Select-Object Name, DeviceID | ConvertTo-Json"
+            res = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_cmd], capture_output=True, text=True)
+            if res.stdout.strip():
+                import json
+                win_devices = json.loads(res.stdout)
+                if not isinstance(win_devices, list):
+                    win_devices = [win_devices]
+                for d in win_devices:
+                    name = d.get('Name')
+                    dev_id = d.get('DeviceID')
+                    if name:
+                        devices.append({'id': dev_id or name, 'name': name})
+        except Exception as e:
+            logger.error(f"Error listing Windows audio devices: {e}")
+    else:
+        try:
+            res = subprocess.run(['aplay', '-L'], capture_output=True, text=True)
+            if res.returncode == 0:
+                lines = res.stdout.splitlines()
+                current_id = None
+                for line in lines:
+                    if not line:
+                        continue
+                    if line.startswith(' ') or line.startswith('\t'):
+                        if current_id and line.strip():
+                            for d in devices:
+                                if d['id'] == current_id:
+                                    d['name'] = f"{line.strip()} ({current_id})"
+                                    break
+                            current_id = None
+                    else:
+                        device_id = line.strip()
+                        if device_id and not any(device_id.startswith(p) for p in ['null', 'dmix', 'dsnoop', 'hw', 'plughw']):
+                            devices.append({'id': device_id, 'name': device_id})
+                            current_id = device_id
+        except Exception as e:
+            logger.error(f"Error listing Linux audio devices: {e}")
+    return devices
+
+
+# Network status helper
+def get_network_status():
+    import json
+    import subprocess
+    status = {
+        'lan': {'status': 'disconnected', 'ip': None, 'conn': None},
+        'wifi': {'status': 'disconnected', 'ip': None, 'conn': None, 'ssid': None}
+    }
+    
+    if os.name == 'nt':
+        try:
+            # 1. Get adapter statuses (Up / Disconnected)
+            adapter_status = {}
+            ps_ad_cmd = "Get-NetAdapter | Select-Object Name, Status | ConvertTo-Json"
+            res_ad = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_ad_cmd], capture_output=True, text=True)
+            if res_ad.stdout.strip():
+                try:
+                    adapters_list = json.loads(res_ad.stdout)
+                    if not isinstance(adapters_list, list):
+                        adapters_list = [adapters_list]
+                    for ad in adapters_list:
+                        name = ad.get('Name', '')
+                        status_str = ad.get('Status', '').lower()
+                        adapter_status[name.lower()] = 'connected' if status_str == 'up' else 'disconnected'
+                except Exception as je:
+                    logger.error(f"JSON parse error for NetAdapter: {je}")
+
+            # 2. Get IP addresses
+            ps_ip_cmd = "Get-NetIPAddress | Select-Object InterfaceAlias, IPAddress | ConvertTo-Json"
+            res_ip = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_ip_cmd], capture_output=True, text=True)
+            if res_ip.stdout.strip():
+                try:
+                    ips_list = json.loads(res_ip.stdout)
+                    if not isinstance(ips_list, list):
+                        ips_list = [ips_list]
+                    for item in ips_list:
+                        alias = item.get('InterfaceAlias', '')
+                        alias_lower = alias.lower()
+                        ip = item.get('IPAddress', '')
+                        
+                        # Skip IPv6, loopback, and APIPA autoconfigured IPs (169.254.x.x)
+                        if '.' in ip and ip != '127.0.0.1' and not ip.startswith('169.254.'):
+                            is_up = adapter_status.get(alias_lower, 'disconnected') == 'connected'
+                            
+                            # Filter out virtual environments
+                            if 'virtualbox' in alias_lower or 'vEthernet' in alias_lower:
+                                continue
+                                
+                            if 'wi-fi' in alias_lower or 'wifi' in alias_lower or 'wireless' in alias_lower:
+                                status['wifi']['ip'] = ip
+                                if is_up:
+                                    status['wifi']['status'] = 'connected'
+                            elif 'ethernet' in alias_lower or 'lan' in alias_lower or 'local area' in alias_lower:
+                                if not status['lan']['ip'] or alias_lower == 'ethernet':
+                                    status['lan']['ip'] = ip
+                                    if is_up:
+                                        status['lan']['status'] = 'connected'
+                except Exception as je:
+                    logger.error(f"JSON parse error for NetIPAddress: {je}")
+            
+            # 3. Get connected SSID
+            wifi_ssid_cmd = "(netsh wlan show interfaces) | Select-String 'SSID' | ForEach-Object { $_.ToString().Split(':')[1].Trim() }"
+            res_ssid = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', wifi_ssid_cmd], capture_output=True, text=True)
+            lines = res_ssid.stdout.strip().splitlines()
+            for line in lines:
+                if line and not line.startswith('BSSID') and not line.startswith('SSID'):
+                    status['wifi']['ssid'] = line.strip()
+                    status['wifi']['status'] = 'connected'
+                    break
+        except Exception as e:
+            logger.error(f"Error getting Windows network status: {e}")
+    else:
+        try:
+            res = subprocess.run(['nmcli', '-t', '-f', 'DEVICE,TYPE,STATE,CONNECTION', 'device'], capture_output=True, text=True)
+            if res.returncode == 0:
+                for line in res.stdout.strip().splitlines():
+                    parts = line.split(':')
+                    if len(parts) >= 4:
+                        dev, dev_type, state, conn = parts[0], parts[1], parts[2], parts[3]
+                        if dev_type == 'ethernet':
+                            status['lan']['status'] = state
+                            status['lan']['conn'] = conn if conn else None
+                        elif dev_type == 'wifi':
+                            status['wifi']['status'] = state
+                            status['wifi']['conn'] = conn if conn else None
+                            if state == 'connected' and conn:
+                                status['wifi']['ssid'] = conn
+            
+            ip_res = subprocess.run(['ip', '-o', '-4', 'addr', 'list'], capture_output=True, text=True)
+            if ip_res.returncode == 0:
+                for line in ip_res.stdout.strip().splitlines():
+                    parts = line.split()
+                    if len(parts) >= 4:
+                        iface = parts[1]
+                        ip_with_subnet = parts[3]
+                        ip = ip_with_subnet.split('/')[0]
+                        if iface.startswith('eth') or iface.startswith('en'):
+                            status['lan']['ip'] = ip
+                            status['lan']['status'] = 'connected'
+                        elif iface.startswith('wlan') or iface.startswith('wl'):
+                            status['wifi']['ip'] = ip
+                            status['wifi']['status'] = 'connected'
+        except Exception as e:
+            logger.error(f"Error getting Linux network status: {e}")
+            
+    return status
+
+
+# Wi-Fi Scan helper
+def scan_wifi():
+    import subprocess
+    networks = []
+    if os.name == 'nt':
+        try:
+            cmd = "netsh wlan show networks | Select-String 'SSID' | ForEach-Object { $_.ToString().Split(':')[1].Trim() }"
+            res = subprocess.run(['powershell', '-NoProfile', '-NonInteractive', '-Command', cmd], capture_output=True, text=True)
+            found = []
+            for line in res.stdout.strip().splitlines():
+                if line.strip():
+                    found.append(line.strip())
+            
+            if found:
+                for ssid in found:
+                    networks.append({
+                        'ssid': ssid,
+                        'signal': 85,
+                        'security': 'WPA2-Personal',
+                        'active': False
+                    })
+            else:
+                networks = [
+                    {'ssid': 'Wifi_Sekolah_Utama', 'signal': 95, 'security': 'WPA2-Personal', 'active': False},
+                    {'ssid': 'TU_Wifi', 'signal': 70, 'security': 'WPA2-Personal', 'active': False},
+                    {'ssid': 'Guru_Hotspot', 'signal': 55, 'security': 'Open', 'active': False},
+                    {'ssid': 'Lab_Komputer', 'signal': 40, 'security': 'WPA2-Enterprise', 'active': False}
+                ]
+        except Exception:
+            networks = [
+                {'ssid': 'Wifi_Sekolah_Utama (Mock)', 'signal': 95, 'security': 'WPA2-Personal', 'active': False}
+            ]
+    else:
+        try:
+            subprocess.run(['nmcli', 'device', 'wifi', 'rescan'], capture_output=True)
+            res = subprocess.run(['nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY,ACTIVE', 'device', 'wifi', 'list'], capture_output=True, text=True)
+            if res.returncode == 0:
+                seen_ssids = {}
+                for line in res.stdout.strip().splitlines():
+                    if not line:
+                        continue
+                    parts = line.split(':')
+                    if len(parts) >= 4:
+                        active = parts[-1].lower() == 'yes'
+                        security = parts[-2]
+                        signal_str = parts[-3]
+                        ssid = ':'.join(parts[:-3])
+                        
+                        if not ssid:
+                            continue
+                            
+                        try:
+                            signal = int(signal_str)
+                        except ValueError:
+                            signal = 0
+                            
+                        if ssid not in seen_ssids or signal > seen_ssids[ssid]['signal']:
+                            seen_ssids[ssid] = {
+                                'ssid': ssid,
+                                'signal': signal,
+                                'security': security if security else 'Open',
+                                'active': active
+                            }
+                networks = list(seen_ssids.values())
+                networks.sort(key=lambda x: x['signal'], reverse=True)
+        except Exception as e:
+            logger.error(f"Error scanning Wi-Fi: {e}")
+            
+    return networks
+
+
+# Wi-Fi Connect helper
+def connect_wifi(ssid, password):
+    import time
+    import subprocess
+    if os.name == 'nt':
+        time.sleep(2)
+        return True, "Koneksi simulasi berhasil di Windows"
+    else:
+        try:
+            cmd = ['nmcli', 'device', 'wifi', 'connect', ssid]
+            if password:
+                cmd.extend(['password', password])
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+            if res.returncode == 0:
+                return True, "Berhasil terhubung ke Wi-Fi"
+            else:
+                err_msg = res.stderr.strip() or res.stdout.strip() or "Gagal terhubung"
+                return False, err_msg
+        except subprocess.TimeoutExpired:
+            return False, "Koneksi ke Wi-Fi timeout"
+        except Exception as e:
+            return False, f"Error: {str(e)}"
+
+
+@app.route('/api/settings', methods=['GET', 'POST'])
+def api_settings():
+    if request.method == 'GET':
+        device = Pengaturan.get_val('audio_device', 'default')
+        volume = Pengaturan.get_val('volume', '80')
+        return jsonify({
+            'audio_device': device,
+            'volume': int(volume)
+        })
+    
+    data = request.get_json() or {}
+    try:
+        if 'audio_device' in data:
+            Pengaturan.set_val('audio_device', data['audio_device'])
+        if 'volume' in data:
+            level = max(0, min(100, int(data['volume'])))
+            audio_engine.set_volume(level)
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
+
+
+@app.route('/api/audio-devices')
+def api_audio_devices():
+    devices = get_audio_devices()
+    return jsonify({'devices': devices})
+
+
+@app.route('/api/network/status')
+def api_network_status():
+    status = get_network_status()
+    return jsonify(status)
+
+
+@app.route('/api/network/wifi/scan')
+def api_network_wifi_scan():
+    networks = scan_wifi()
+    return jsonify({'networks': networks})
+
+
+@app.route('/api/network/wifi/connect', methods=['POST'])
+def api_network_wifi_connect():
+    data = request.get_json() or {}
+    ssid = data.get('ssid', '').strip()
+    password = data.get('password', '').strip()
+    if not ssid:
+        return jsonify({'status': 'error', 'message': 'SSID wajib diisi'}), 400
+    
+    success, msg = connect_wifi(ssid, password)
+    if success:
+        log = LogAktivitas(aksi=f"Connect Wi-Fi: {ssid}", status="OK")
+        db.session.add(log)
+        db.session.commit()
+        return jsonify({'status': 'ok', 'message': msg})
+    else:
+        log = LogAktivitas(aksi=f"Gagal Connect Wi-Fi: {ssid}", status="ERROR")
+        db.session.add(log)
+        db.session.commit()
+        return jsonify({'status': 'error', 'message': msg})
+
+
+# ─── Authentication Proteksi ──────────────────────────────────────────────────
+@app.before_request
+def require_login():
+    # Endpoints that do not require login
+    allowed_endpoints = ['login', 'serve_sound', 'static']
+    if request.endpoint in allowed_endpoints:
+        return
+    
+    # Exclude path prefixes
+    for prefix in ['/login', '/static', '/sounds']:
+        if request.path.startswith(prefix):
+            return
+            
+    if 'user_id' not in session:
+        # If it's an API request, return JSON error instead of redirecting
+        if request.path.startswith('/api/'):
+            return jsonify({'status': 'error', 'message': 'Authentication required'}), 401
+        return redirect(url_for('login'))
+
+
+# ─── Authentication Routes ────────────────────────────────────────────────────
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user_id' in session:
+        return redirect(url_for('dashboard'))
+        
+    if request.method == 'POST':
+        if request.is_json:
+            data = request.get_json() or {}
+            username = data.get('username', '').strip()
+            password = data.get('password', '').strip()
+        else:
+            username = request.form.get('username', '').strip()
+            password = request.form.get('password', '').strip()
+            
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            session['user_id'] = user.id
+            session['username'] = user.username
+            if request.is_json:
+                return jsonify({'status': 'ok'})
+            return redirect(url_for('dashboard'))
+        else:
+            msg = 'Username atau password salah!'
+            if request.is_json:
+                return jsonify({'status': 'error', 'message': msg}), 401
+            return render_template('login.html', error=msg)
+            
+    return render_template('login.html')
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# API — USER MANAGEMENT
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/api/users', methods=['GET', 'POST'])
+def api_users():
+    if request.method == 'GET':
+        users = User.query.all()
+        return jsonify([u.to_dict() for u in users])
+        
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username or not password:
+        return jsonify({'status': 'error', 'message': 'Username dan password wajib diisi'}), 400
+        
+    if User.query.filter_by(username=username).first():
+        return jsonify({'status': 'error', 'message': f'Username "{username}" sudah terdaftar'}), 400
+        
+    try:
+        new_user = User(username=username)
+        new_user.set_password(password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        log = LogAktivitas(aksi=f"Tambah User: {username}", status="OK")
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'status': 'ok', 'user': new_user.to_dict()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/users/<int:id>', methods=['PUT'])
+def api_edit_user(id):
+    user = db.session.get(User, id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User tidak ditemukan'}), 404
+        
+    data = request.get_json() or {}
+    username = data.get('username', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username:
+        return jsonify({'status': 'error', 'message': 'Username tidak boleh kosong'}), 400
+        
+    existing = User.query.filter(User.username == username, User.id != id).first()
+    if existing:
+        return jsonify({'status': 'error', 'message': f'Username "{username}" sudah terdaftar'}), 400
+        
+    try:
+        user.username = username
+        if password:
+            user.set_password(password)
+        db.session.commit()
+        
+        if user.id == session.get('user_id'):
+            session['username'] = username
+            
+        log = LogAktivitas(aksi=f"Edit User: {username}", status="OK")
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'status': 'ok', 'user': user.to_dict()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/users/<int:id>', methods=['DELETE'])
+def api_delete_user(id):
+    user = db.session.get(User, id)
+    if not user:
+        return jsonify({'status': 'error', 'message': 'User tidak ditemukan'}), 404
+        
+    if user.id == session.get('user_id'):
+        return jsonify({'status': 'error', 'message': 'Tidak dapat menghapus akun yang sedang digunakan'}), 400
+        
+    try:
+        username = user.username
+        db.session.delete(user)
+        db.session.commit()
+        
+        log = LogAktivitas(aksi=f"Hapus User: {username}", status="OK")
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # ─── Serve uploaded sounds ────────────────────────────────────────────────────

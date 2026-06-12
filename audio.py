@@ -6,6 +6,14 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _get_selected_device():
+    try:
+        from models import Pengaturan
+        return Pengaturan.get_val('audio_device', 'default')
+    except Exception:
+        return 'default'
+
+
 class AudioEngine:
     """
     Manages audio playback via system commands.
@@ -46,6 +54,7 @@ class AudioEngine:
         with self._lock:
             self._kill_current()
             ext = os.path.splitext(path)[1].lower()
+            device = _get_selected_device()
             try:
                 if os.name == 'nt':
                     # Windows playback using built-in PowerShell MediaPlayer (supports WAV and MP3)
@@ -68,24 +77,34 @@ class AudioEngine:
                         ['powershell', '-NoProfile', '-NonInteractive', '-Command', ps_script],
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
-                    logger.info(f"▶ Playing local (Windows): {path}")
+                    logger.info(f"▶ Playing local (Windows - Device: {device}): {path}")
                 else:
                     if ext == '.mp3':
-                        cmd = ['mpg123', '-q', path]
+                        if device and device != 'default':
+                            cmd = ['mpg123', '-a', device, '-q', path]
+                        else:
+                            cmd = ['mpg123', '-q', path]
                     else:
-                        cmd = ['aplay', '-q', path]
+                        if device and device != 'default':
+                            cmd = ['aplay', '-D', device, '-q', path]
+                        else:
+                            cmd = ['aplay', '-q', path]
                     self._process = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
-                    logger.info(f"▶ Playing local: {path}")
+                    logger.info(f"▶ Playing local (device: {device}): {path}")
 
                 if duration_minutes:
                     self._schedule_stop(duration_minutes * 60)
             except FileNotFoundError:
                 # Fallback: try paplay (PulseAudio)
                 try:
+                    if device and device != 'default':
+                        cmd = ['paplay', '-d', device, path]
+                    else:
+                        cmd = ['paplay', path]
                     self._process = subprocess.Popen(
-                        ['paplay', path],
+                        cmd,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
                 except Exception as e:
@@ -160,19 +179,22 @@ class AudioEngine:
                     self._kill_current()
                     is_url = url_or_query.startswith('http')
                     source = url_or_query if is_url else f'ytdl://ytsearch1:{url_or_query}'
+                    device = _get_selected_device()
                     cmd = [
                         'mpv',
                         '--no-video',
                         '--quiet',
                         '--ytdl-format=bestaudio/best',
-                        source,
                     ]
+                    if device and device != 'default':
+                        cmd.append(f'--audio-device=alsa/{device}')
+                    cmd.append(source)
                     if duration_minutes:
                         cmd.append(f'--length={int(duration_minutes * 60)}')
                     self._process = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
-                    logger.info(f"▶ Streaming YouTube: {url_or_query}")
+                    logger.info(f"▶ Streaming YouTube (device: {device}): {url_or_query}")
 
                 if duration_minutes:
                     self._schedule_stop(duration_minutes * 60)
@@ -190,6 +212,12 @@ class AudioEngine:
     def set_volume(self, level: int) -> bool:
         """Set system volume (0–100). Tries ALSA first, then PulseAudio."""
         level = max(0, min(100, level))
+        try:
+            from models import Pengaturan
+            Pengaturan.set_val('volume', level)
+        except Exception as e:
+            logger.error(f"Failed to save volume to database: {e}")
+
         if os.name == 'nt':
             logger.info(f"🔊 Volume control is simulated on Windows (requested {level}%)")
             return True

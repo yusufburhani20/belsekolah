@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Bell System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=1.1">
+</head>
+<body class="login-body">
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="login-header-section">
+        <div class="login-brand-icon">🔔</div>
+        <h2>Bell System</h2>
+        <p>Silakan masuk untuk mengelola sistem bel</p>
+      </div>
+
+      {% if error %}
+      <div class="login-error-alert">
+        ⚠️ {{ error }}
+      </div>
+      {% endif %}
+
+      <form action="{{ url_for('login') }}" method="POST" class="login-form">
+        <div class="login-form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" placeholder="Masukkan username" required autocomplete="username" autofocus>
+        </div>
+        
+        <div class="login-form-group" style="margin-top:16px;">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Masukkan password" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary login-btn" style="margin-top:24px; width:100%; justify-content:center; padding:12px;">Masuk</button>
+      </form>
+      
+      <div class="login-footer">
+        <span>HG680P · Armbian Linux</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

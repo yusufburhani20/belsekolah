@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
@@ -71,3 +72,45 @@ class LogAktivitas(db.Model):
     waktu = db.Column(db.DateTime, default=datetime.now)
     aksi = db.Column(db.String(200))
     status = db.Column(db.String(50), default='OK')
+
+
+class Pengaturan(db.Model):
+    __tablename__ = 'pengaturan'
+    kunci = db.Column(db.String(100), primary_key=True)
+    nilai = db.Column(db.String(500), nullable=True)
+
+    def to_dict(self):
+        return {'kunci': self.kunci, 'nilai': self.nilai}
+
+    @classmethod
+    def get_val(cls, kunci, default=None):
+        obj = cls.query.filter_by(kunci=kunci).first()
+        return obj.nilai if obj else default
+
+    @classmethod
+    def set_val(cls, kunci, nilai):
+        obj = cls.query.filter_by(kunci=kunci).first()
+        if obj:
+            obj.nilai = str(nilai)
+        else:
+            obj = cls(kunci=kunci, nilai=str(nilai))
+            db.session.add(obj)
+        db.session.commit()
+
+
+class User(db.Model):
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='admin')
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
+
+    def to_dict(self):
+        return {'id': self.id, 'username': self.username, 'role': self.role}
+

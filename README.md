@@ -14,7 +14,11 @@ Sistem ini mendukung pemutaran bel lokal (MP3/WAV) serta pemutaran musik/audio l
 - 🔔 **Manajemen Audio Lokal**: Unggah file bel sekolah Anda sendiri (WAV/MP3) langsung dari antarmuka web.
 - 🎵 **Integrasi YouTube**: Cari lagu/audio dari YouTube langsung dari aplikasi, simpan, atau putar secara *live* untuk lagu istirahat.
 - 🔊 **Volume Control**: Mengatur volume speaker sekolah langsung dari dashboard Web UI.
-- 🛑 **Tombol Darurat (Test & Stop)**: Tombol untuk membunyikan bel secara manual (*Test Bel*) dan menghentikan audio darurat (*Stop Audio*).
+- 🔐 **Autentikasi & Keamanan**: Halaman login untuk keamanan sistem serta menu **Manajemen Pengguna** (tambah, edit, hapus user) untuk mengelola akun administrator secara remote.
+- 🌐 **Pengaturan Jaringan (LAN & Wi-Fi)**: Memantau alamat IP LAN/Wi-Fi STB secara real-time, memindai jaringan Wi-Fi terdekat, dan menghubungkannya langsung lewat Web UI.
+- 🔊 **Pemilihan Soundcard**: Memilih perangkat keras/soundcard output audio bel secara dinamis dari halaman pengaturan.
+- 🛑 **Tombol Darurat (Test & Stop)**: Tombol manual membunyikan bel (*Test Bel*) dan menghentikan audio darurat (*Stop Audio*), tersedia versi cepat untuk akses layar HP.
+- 📱 **Tampilan Mobile Responsif**: Dioptimalkan sepenuhnya untuk layar handphone dengan navigasi laci geser (*sidebar drawer*), tabel fleksibel, dan overlay redup.
 - ⚙️ **Autostart (Systemd)**: Berjalan otomatis di latar belakang (*background service*) saat STB dinyalakan (*booting*).
 - ☀️ **Desain Flat & Light Mode**: Desain antarmuka cerah (*light theme*) yang modern, bersih, bebas dari efek shadow/gradasi yang berat.
 - 🛡 **Double-Click Delete**: Perlindungan hapus jadwal/audio secara inline untuk mencegah salah klik tanpa memicu pop-up dialog browser.

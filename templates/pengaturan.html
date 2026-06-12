@@ -9,38 +9,113 @@
 
 <div class="settings-grid">
 
-  <!-- ── Kalender Libur ────────────────────────────────────────────────────── -->
-  <div class="settings-card">
-    <h2>📆 Kalender Hari Libur</h2>
-    <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
-      Pada hari libur yang terdaftar, semua bel akan dinonaktifkan otomatis.
-    </p>
+  <!-- Kolom Kiri (Libur & Audio Device) -->
+  <div>
+    <!-- ── Kalender Libur ────────────────────────────────────────────────────── -->
+    <div class="settings-card">
+      <h2>📆 Kalender Hari Libur</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+        Pada hari libur yang terdaftar, semua bel akan dinonaktifkan otomatis.
+      </p>
 
-    <form id="formTambahLibur">
-      <div class="form-row">
-        <input type="date" id="liburTanggal" required style="flex:1;">
-        <input type="text" id="liburKet" placeholder="Keterangan (opsional)" style="flex:2;">
-        <button type="submit" class="btn btn-primary" style="white-space:nowrap;">+ Tambah</button>
-      </div>
-    </form>
-
-    <div class="libur-list" id="liburList">
-      {% if libur_list %}
-        {% for libur in libur_list %}
-        <div class="libur-item" id="libur-{{ libur.id }}">
-          <span class="libur-date">{{ libur.tanggal.strftime('%d %b %Y') }}</span>
-          <span class="libur-ket">{{ libur.keterangan or '—' }}</span>
-          <button class="btn-icon btn-danger" onclick="hapusLibur({{ libur.id }})" title="Hapus">🗑</button>
+      <form id="formTambahLibur">
+        <div class="form-row">
+          <input type="date" id="liburTanggal" required style="flex:1;">
+          <input type="text" id="liburKet" placeholder="Keterangan (opsional)" style="flex:2;">
+          <button type="submit" class="btn btn-primary" style="white-space:nowrap;">+ Tambah</button>
         </div>
-        {% endfor %}
-      {% else %}
-        <p class="empty-hint" id="emptyLibur">Belum ada hari libur terdaftar.</p>
-      {% endif %}
+      </form>
+
+      <div class="libur-list" id="liburList">
+        {% if libur_list %}
+          {% for libur in libur_list %}
+          <div class="libur-item" id="libur-{{ libur.id }}">
+            <span class="libur-date">{{ libur.tanggal.strftime('%d %b %Y') }}</span>
+            <span class="libur-ket">{{ libur.keterangan or '—' }}</span>
+            <button class="btn-icon btn-danger" onclick="hapusLibur({{ libur.id }})" title="Hapus">🗑</button>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="empty-hint" id="emptyLibur">Belum ada hari libur terdaftar.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- 🔊 Perangkat Output Audio -->
+    <div class="settings-card" style="margin-top:16px;">
+      <h2>🔊 Perangkat Output Audio</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+        Pilih kartu suara untuk keluaran audio bel sekolah.
+      </p>
+      <div class="form-row" style="gap:10px;">
+        <select id="settingAudioDevice" style="flex:1; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-color);">
+          <option value="default">Default Output Device</option>
+        </select>
+        <button id="btnSaveAudioDevice" onclick="saveAudioDeviceSetting()" class="btn btn-primary" style="white-space:nowrap;">Simpan</button>
+      </div>
+    </div>
+
+    <!-- 👥 Manajemen Pengguna -->
+    <div class="settings-card" style="margin-top:16px;">
+      <h2>👥 Manajemen Pengguna</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+        Kelola pengguna yang memiliki akses untuk mengatur sistem bel.
+      </p>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <span style="font-size:0.82rem; font-weight:600; color:var(--text-muted);">Daftar User</span>
+        <button class="btn btn-primary" style="padding: 4px 10px; font-size:0.75rem;" onclick="showModal('modalTambahUser')">+ Tambah User</button>
+      </div>
+
+      <div class="user-list-container" id="userListContainer">
+        <p class="empty-hint">Memuat daftar pengguna...</p>
+      </div>
     </div>
   </div>
 
-  <!-- ── Info & Deployment ─────────────────────────────────────────────────── -->
+  <!-- Kolom Kanan (Jaringan & Sistem) -->
   <div>
+
+    <!-- 🌐 Koneksi Jaringan -->
+    <div class="settings-card" style="margin-bottom:16px;">
+      <h2>🌐 Koneksi Jaringan</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+        Kelola status koneksi kabel LAN dan nirkabel Wi-Fi STB.
+      </p>
+      
+      <div class="network-status-group">
+        <!-- LAN -->
+        <div class="net-status-item">
+          <div class="net-icon">🔌</div>
+          <div class="net-info">
+            <span class="net-name">Koneksi LAN (Kabel)</span>
+            <span class="net-ip" id="lanIp">Memuat IP...</span>
+          </div>
+          <div class="net-badge" id="lanBadge">Offline</div>
+        </div>
+        
+        <!-- Wi-Fi -->
+        <div class="net-status-item">
+          <div class="net-icon">📶</div>
+          <div class="net-info">
+            <span class="net-name">Koneksi Wi-Fi</span>
+            <span class="net-ip" id="wifiIp">Memuat IP...</span>
+          </div>
+          <div class="net-badge" id="wifiBadge">Offline</div>
+        </div>
+      </div>
+
+      <div class="wifi-section" style="margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="font-size:0.95rem; margin:0;">Pindai Wi-Fi Terdekat</h3>
+          <button class="btn btn-primary" style="padding: 5px 12px; font-size:0.8rem;" id="btnScanWifi" onclick="scanWifiNetworks()">🔄 Pindai</button>
+        </div>
+        
+        <div class="wifi-list" id="wifiListContainer">
+          <p class="empty-hint">Klik "Pindai" untuk mendeteksi jaringan Wi-Fi di sekitar.</p>
+        </div>
+      </div>
+    </div>
 
     <!-- Info Sistem -->
     <div class="settings-card" style="margin-bottom:16px;">
@@ -107,6 +182,83 @@ pip3 install -r /opt/bell/requirements.txt</pre>
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- Modal Hubungkan Wi-Fi -->
+<div class="modal" id="modalConnectWifi">
+  <div class="modal-backdrop" onclick="closeModal('modalConnectWifi')"></div>
+  <div class="modal-box" style="max-width:400px;">
+    <div class="modal-header">
+      <h3>Hubungkan Wi-Fi</h3>
+      <button onclick="closeModal('modalConnectWifi')">✕</button>
+    </div>
+    <form id="formConnectWifi">
+      <input type="hidden" id="wifiSsidInput">
+      <div class="form-group" style="padding-top:16px;">
+        <label>SSID Jaringan</label>
+        <p style="font-size:0.95rem; font-weight:600; margin:0;" id="wifiTargetSsid">—</p>
+      </div>
+      <div class="form-group">
+        <label for="wifiPasswordInput">Kata Sandi *</label>
+        <input type="password" id="wifiPasswordInput" placeholder="Masukkan kata sandi Wi-Fi" required autocomplete="current-password">
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('modalConnectWifi')" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btnWifiConnectSubmit">Hubungkan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Tambah User -->
+<div class="modal" id="modalTambahUser">
+  <div class="modal-backdrop" onclick="closeModal('modalTambahUser')"></div>
+  <div class="modal-box" style="max-width:400px;">
+    <div class="modal-header">
+      <h3>Tambah Pengguna Baru</h3>
+      <button onclick="closeModal('modalTambahUser')">✕</button>
+    </div>
+    <form id="formTambahUser">
+      <div class="form-group" style="padding-top:16px;">
+        <label for="newUsername">Username *</label>
+        <input type="text" id="newUsername" placeholder="Masukkan username" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="newPassword">Password *</label>
+        <input type="password" id="newPassword" placeholder="Masukkan password" required autocomplete="new-password">
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('modalTambahUser')" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btnTambahUserSubmit">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal Edit User -->
+<div class="modal" id="modalEditUser">
+  <div class="modal-backdrop" onclick="closeModal('modalEditUser')"></div>
+  <div class="modal-box" style="max-width:400px;">
+    <div class="modal-header">
+      <h3>Edit Pengguna</h3>
+      <button onclick="closeModal('modalEditUser')">✕</button>
+    </div>
+    <form id="formEditUser">
+      <input type="hidden" id="editUserIdInput">
+      <div class="form-group" style="padding-top:16px;">
+        <label for="editUsername">Username *</label>
+        <input type="text" id="editUsername" placeholder="Masukkan username" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label for="editPassword">Password Baru (kosongkan jika tidak diubah)</label>
+        <input type="password" id="editPassword" placeholder="Masukkan password baru" autocomplete="new-password">
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('modalEditUser')" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btnEditUserSubmit">Simpan</button>
+      </div>
+    </form>
   </div>
 </div>
 
