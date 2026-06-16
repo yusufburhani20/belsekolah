@@ -49,10 +49,20 @@ class AudioEngine:
         self._stop_timer.daemon = True
         self._stop_timer.start()
 
+    def _ensure_hardware_audio_on(self):
+        """Ensure analog codec is unmuted and AV output jack is powered ON (Linux only)."""
+        if os.name != 'nt':
+            try:
+                subprocess.run(['amixer', '-c', '0', '-q', 'sset', 'AIU ACODEC OUT EN', 'on'], capture_output=True)
+                subprocess.run(['amixer', '-c', '0', '-q', 'sset', 'ACODEC', 'unmute'], capture_output=True)
+            except Exception as e:
+                logger.debug(f"Failed to ensure hardware audio: {e}")
+
     def play_local(self, path: str, duration_minutes: float = None):
         """Play a local audio file. Optionally auto-stop after duration_minutes."""
         with self._lock:
             self._kill_current()
+            self._ensure_hardware_audio_on()
             ext = os.path.splitext(path)[1].lower()
             device = _get_selected_device()
             try:
@@ -171,6 +181,7 @@ class AudioEngine:
                     logger.info(f"▶ Streaming YouTube (Windows - Local Temp): {actual_title}")
                 else:
                     self._kill_current()
+                    self._ensure_hardware_audio_on()
                     is_url = url_or_query.startswith('http')
                     source = url_or_query if is_url else f'ytdl://ytsearch1:{url_or_query}'
                     device = _get_selected_device()
@@ -217,8 +228,12 @@ class AudioEngine:
             return True
         try:
             subprocess.run(
-                ['amixer', '-q', 'sset', 'ACODEC', f'{level}%'],
+                ['amixer', '-c', '0', '-q', 'sset', 'ACODEC', f'{level}%', 'unmute'],
                 check=True, capture_output=True
+            )
+            subprocess.run(
+                ['amixer', '-c', '0', '-q', 'sset', 'AIU ACODEC OUT EN', 'on'],
+                capture_output=True
             )
             logger.info(f"🔊 Volume set to {level}% via amixer")
             return True
