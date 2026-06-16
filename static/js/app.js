@@ -537,10 +537,19 @@ async function loadNetworkStatus() {
       wifiIp.textContent = `${status.wifi.ip || 'Terhubung'} (${status.wifi.ssid || 'SSID tidak diketahui'})`;
       wifiBadge.textContent = 'Online';
       wifiBadge.className = 'net-badge connected';
+      const actionsContainer = document.getElementById('wifiActionsContainer');
+      if (actionsContainer) {
+        actionsContainer.style.display = 'flex';
+        actionsContainer.dataset.ssid = status.wifi.ssid || '';
+      }
     } else {
       wifiIp.textContent = 'Tidak terhubung';
       wifiBadge.textContent = 'Offline';
       wifiBadge.className = 'net-badge disconnected';
+      const actionsContainer = document.getElementById('wifiActionsContainer');
+      if (actionsContainer) {
+        actionsContainer.style.display = 'none';
+      }
     }
   } catch (err) {
     console.error("Gagal memuat status jaringan:", err);
@@ -571,7 +580,10 @@ async function scanWifiNetworks() {
       const isConnected = net.active;
       const signalClass = net.signal >= 75 ? 'sig-strong' : (net.signal >= 45 ? 'sig-medium' : 'sig-weak');
       const actionBtn = isConnected 
-        ? `<span style="color:var(--text-success); font-weight:bold; font-size:0.85rem;">Terhubung ✅</span>`
+        ? `<div style="display:flex; gap:6px; align-items:center;">
+             <span style="color:var(--text-success); font-weight:bold; font-size:0.85rem; margin-right:4px;">Terhubung ✅</span>
+             <button class="btn btn-ghost" style="padding: 3px 6px; font-size:0.7rem; border:1px solid var(--border-color);" onclick="disconnectActiveWifi()">Putuskan</button>
+           </div>`
         : `<button class="btn btn-primary" style="padding: 4px 10px; font-size:0.75rem;" onclick="promptConnectWifi('${escHtml(net.ssid)}')">Hubungkan</button>`;
       
       return `
@@ -608,6 +620,57 @@ function promptConnectWifi(ssid) {
   if (passwordInput) passwordInput.value = '';
   
   showModal('modalConnectWifi');
+}
+
+
+async function disconnectActiveWifi() {
+  const container = document.getElementById('wifiActionsContainer');
+  const ssid = container ? container.dataset.ssid : '';
+  if (!ssid) {
+    showToast('SSID aktif tidak ditemukan', 'error');
+    return;
+  }
+  
+  if (!confirm(`Putuskan koneksi dari Wi-Fi "${ssid}"?`)) return;
+  
+  showToast(`Memutuskan koneksi dari ${ssid}...`, 'info');
+  try {
+    const res = await api('POST', '/api/network/wifi/disconnect', { ssid });
+    if (res.status === 'ok') {
+      showToast(`✅ ${res.message}`, 'success');
+      await loadNetworkStatus();
+      await scanWifiNetworks();
+    } else {
+      showToast(`❌ Gagal: ${res.message}`, 'error');
+    }
+  } catch (err) {
+    showToast(`❌ Error: ${err.message}`, 'error');
+  }
+}
+
+async function forgetActiveWifi() {
+  const container = document.getElementById('wifiActionsContainer');
+  const ssid = container ? container.dataset.ssid : '';
+  if (!ssid) {
+    showToast('SSID aktif tidak ditemukan', 'error');
+    return;
+  }
+  
+  if (!confirm(`Lupakan jaringan Wi-Fi "${ssid}" dan hapus sandinya dari STB?`)) return;
+  
+  showToast(`Melupakan jaringan ${ssid}...`, 'info');
+  try {
+    const res = await api('POST', '/api/network/wifi/forget', { ssid });
+    if (res.status === 'ok') {
+      showToast(`✅ ${res.message}`, 'success');
+      await loadNetworkStatus();
+      await scanWifiNetworks();
+    } else {
+      showToast(`❌ Gagal: ${res.message}`, 'error');
+    }
+  } catch (err) {
+    showToast(`❌ Error: ${err.message}`, 'error');
+  }
 }
 
 (function initConnectWifiForm() {

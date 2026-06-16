@@ -647,6 +647,39 @@ def connect_wifi(ssid, password):
             return False, f"Error: {str(e)}"
 
 
+# Wi-Fi Disconnect helper
+def disconnect_wifi(ssid):
+    import subprocess
+    if os.name == 'nt':
+        return True, f"Koneksi ke '{ssid}' berhasil diputuskan (Simulasi)"
+    try:
+        subprocess.run(['nmcli', 'connection', 'modify', ssid, 'connection.autoconnect', 'no'], capture_output=True)
+        res = subprocess.run(['nmcli', 'connection', 'down', 'id', ssid], capture_output=True, text=True)
+        if res.returncode == 0:
+            return True, f"Berhasil memutuskan koneksi dari '{ssid}'"
+        else:
+            err = res.stderr.strip() or res.stdout.strip() or "Gagal memutuskan"
+            return False, err
+    except Exception as e:
+        return False, str(e)
+
+
+# Wi-Fi Forget helper
+def forget_wifi(ssid):
+    import subprocess
+    if os.name == 'nt':
+        return True, f"Jaringan '{ssid}' berhasil dilupakan (Simulasi)"
+    try:
+        res = subprocess.run(['nmcli', 'connection', 'delete', 'id', ssid], capture_output=True, text=True)
+        if res.returncode == 0:
+            return True, f"Berhasil melupakan jaringan '{ssid}'"
+        else:
+            err = res.stderr.strip() or res.stdout.strip() or "Gagal melupakan jaringan"
+            return False, err
+    except Exception as e:
+        return False, str(e)
+
+
 def get_wifi_interface():
     import subprocess
     try:
@@ -799,6 +832,48 @@ def api_network_wifi_connect():
         db.session.add(log)
         db.session.commit()
         return jsonify({'status': 'error', 'message': msg})
+
+
+@app.route('/api/network/wifi/disconnect', methods=['POST'])
+def api_network_wifi_disconnect():
+    data = request.get_json() or {}
+    ssid = data.get('ssid', '').strip()
+    if not ssid:
+        return jsonify({'status': 'error', 'message': 'SSID wajib diisi'}), 400
+    
+    success, msg = disconnect_wifi(ssid)
+    log = LogAktivitas(
+        aksi=f"Putuskan Wi-Fi: {ssid}", 
+        status="OK" if success else "ERROR"
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    if success:
+        return jsonify({'status': 'ok', 'message': msg})
+    else:
+        return jsonify({'status': 'error', 'message': msg}), 500
+
+
+@app.route('/api/network/wifi/forget', methods=['POST'])
+def api_network_wifi_forget():
+    data = request.get_json() or {}
+    ssid = data.get('ssid', '').strip()
+    if not ssid:
+        return jsonify({'status': 'error', 'message': 'SSID wajib diisi'}), 400
+    
+    success, msg = forget_wifi(ssid)
+    log = LogAktivitas(
+        aksi=f"Lupakan Wi-Fi: {ssid}", 
+        status="OK" if success else "ERROR"
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    if success:
+        return jsonify({'status': 'ok', 'message': msg})
+    else:
+        return jsonify({'status': 'error', 'message': msg}), 500
 
 
 @app.route('/api/network/hotspot', methods=['GET', 'POST'])

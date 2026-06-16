@@ -95,13 +95,19 @@
         </div>
         
         <!-- Wi-Fi -->
-        <div class="net-status-item">
-          <div class="net-icon">📶</div>
-          <div class="net-info">
-            <span class="net-name">Koneksi Wi-Fi</span>
-            <span class="net-ip" id="wifiIp">Memuat IP...</span>
+        <div class="net-status-item" style="flex-wrap: wrap; gap: 10px;">
+          <div style="display:flex; align-items:center; flex:1; min-width:200px; gap:12px;">
+            <div class="net-icon">📶</div>
+            <div class="net-info">
+              <span class="net-name">Koneksi Wi-Fi</span>
+              <span class="net-ip" id="wifiIp">Memuat IP...</span>
+            </div>
+            <div class="net-badge" id="wifiBadge">Offline</div>
           </div>
-          <div class="net-badge" id="wifiBadge">Offline</div>
+          <div id="wifiActionsContainer" style="display:none; gap:8px; width:100%; justify-content:flex-end; padding-top:8px; border-top:1px dashed var(--border-color);">
+            <button class="btn btn-ghost" style="padding:4px 8px; font-size:0.75rem; border:1px solid var(--border-color);" onclick="disconnectActiveWifi()">🔌 Putuskan</button>
+            <button class="btn btn-ghost" style="padding:4px 8px; font-size:0.75rem; color:#ef4444; border:1px solid #ef4444; background:transparent;" onclick="forgetActiveWifi()">🗑️ Lupakan Jaringan</button>
+          </div>
         </div>
       </div>
 
