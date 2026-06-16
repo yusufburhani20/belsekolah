@@ -32,7 +32,7 @@ echo "[4/5] Menginstall systemd service..."
 cp "$SERVICE_FILE" /etc/systemd/system/bell.service
 systemctl daemon-reload
 systemctl enable bell
-systemctl start bell
+systemctl restart bell
 
 # 5. Konfigurasi default hotspot
 echo "Menyiapkan default Hotspot Wi-Fi..."
