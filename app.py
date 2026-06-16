@@ -546,6 +546,10 @@ def get_network_status():
                         elif iface.startswith('wlan') or iface.startswith('wl'):
                             status['wifi']['ip'] = ip
                             status['wifi']['status'] = 'connected'
+            if status['wifi']['conn'] == 'Hotspot':
+                status['wifi']['status'] = 'disconnected'
+                status['wifi']['ip'] = None
+                status['wifi']['ssid'] = None
         except Exception as e:
             logger.error(f"Error getting Linux network status: {e}")
             
@@ -649,6 +653,8 @@ def connect_wifi(ssid, password):
 
 # Wi-Fi Disconnect helper
 def disconnect_wifi(ssid):
+    if ssid == 'Hotspot' or ssid.lower() == 'bell':
+        return False, "Tidak dapat memutuskan koneksi hotspot bawaan!"
     import subprocess
     if os.name == 'nt':
         return True, f"Koneksi ke '{ssid}' berhasil diputuskan (Simulasi)"
@@ -666,6 +672,8 @@ def disconnect_wifi(ssid):
 
 # Wi-Fi Forget helper
 def forget_wifi(ssid):
+    if ssid == 'Hotspot' or ssid.lower() == 'bell':
+        return False, "Tidak dapat menghapus profil hotspot bawaan!"
     import subprocess
     if os.name == 'nt':
         return True, f"Jaringan '{ssid}' berhasil dilupakan (Simulasi)"
