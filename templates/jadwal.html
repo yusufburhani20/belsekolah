@@ -51,6 +51,8 @@
         <td class="action-btns">
           <button class="btn-icon" title="Test"
                   onclick="testBel({{ j.audio.id if j.audio else 'null' }})">▶</button>
+          <button class="btn-icon" title="Edit"
+                  onclick="openEditJadwalModal({{ j.id }}, '{{ j.nama | replace("'", "\\'") }}', '{{ j.waktu }}', {{ j.hari }}, {{ j.audio.id if j.audio else 'null' }}, {{ j.durasi_menit }})">✏️</button>
           <button class="btn-icon btn-danger" title="Hapus"
                   onclick="hapusJadwal({{ j.id }}, this)">🗑</button>
         </td>
@@ -137,4 +139,122 @@ function selectAllDays(mask) {
   });
 }
 </script>
+<!-- Modal Edit Jadwal -->
+<div class="modal" id="modalEditJadwal">
+  <div class="modal-backdrop" onclick="closeModal('modalEditJadwal')"></div>
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>✏️ Edit Jadwal Bel</h3>
+      <button onclick="closeModal('modalEditJadwal')">✕</button>
+    </div>
+    <form id="formEditJadwal">
+      <input type="hidden" id="editJadwalId">
+      <div class="form-group" style="padding-top:16px;">
+        <label>Nama Jadwal *</label>
+        <input type="text" id="editJNama" placeholder="Contoh: Bel Masuk Pagi" required>
+      </div>
+      <div class="form-group">
+        <label>Waktu *</label>
+        <input type="time" id="editJWaktu" required>
+      </div>
+      <div class="form-group">
+        <label>Hari Aktif *</label>
+        <div class="day-selector">
+          <label class="day-check"><input type="checkbox" name="editHari" value="1"><span>Sen</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="2"><span>Sel</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="4"><span>Rab</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="8"><span>Kam</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="16"><span>Jum</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="32"><span>Sab</span></label>
+          <label class="day-check"><input type="checkbox" name="editHari" value="64"><span>Min</span></label>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectEditAllDays(1+2+4+8+16)">Sen–Jum</button>
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectEditAllDays(1+2+4+8+16+32)">Sen–Sab</button>
+          <button type="button" class="btn btn-ghost" style="font-size:0.75rem;padding:4px 10px;"
+                  onclick="selectEditAllDays(127)">Semua</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Audio</label>
+        <select id="editJAudio">
+          <option value="">— Tanpa Audio —</option>
+          {% for a in audio_list %}
+          <option value="{{ a.id }}">
+            {% if a.tipe == 'youtube' %}▶ {% else %}🔔 {% endif %}{{ a.nama }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Durasi Putar (menit)</label>
+        <input type="number" id="editJDurasi" value="1" min="1" max="60">
+      </div>
+      <div class="modal-footer">
+        <button type="button" onclick="closeModal('modalEditJadwal')" class="btn btn-ghost">Batal</button>
+        <button type="submit" class="btn btn-primary" id="btnUpdateJadwal">💾 Simpan Perubahan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+function selectEditAllDays(mask) {
+  document.querySelectorAll('input[name="editHari"]').forEach(cb => {
+    cb.checked = (mask & parseInt(cb.value)) > 0;
+  });
+}
+
+function openEditJadwalModal(id, nama, waktu, hari, audioId, durasi) {
+  document.getElementById('editJadwalId').value = id;
+  document.getElementById('editJNama').value = nama;
+  document.getElementById('editJWaktu').value = waktu;
+  document.getElementById('editJAudio').value = audioId !== null ? audioId : "";
+  document.getElementById('editJDurasi').value = durasi;
+  
+  document.querySelectorAll('input[name="editHari"]').forEach(cb => {
+    cb.checked = (hari & parseInt(cb.value)) > 0;
+  });
+  
+  showModal('modalEditJadwal');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const formEditJadwal = document.getElementById('formEditJadwal');
+  if (formEditJadwal) {
+    formEditJadwal.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const id = document.getElementById('editJadwalId').value;
+      const checks = document.querySelectorAll('input[name="editHari"]:checked');
+      const hari = Array.from(checks).reduce((sum, c) => sum + parseInt(c.value), 0);
+      
+      if (!hari) {
+        showToast('Pilih minimal satu hari!', 'error');
+        return;
+      }
+      
+      const data = {
+        nama: document.getElementById('editJNama').value.trim(),
+        waktu: document.getElementById('editJWaktu').value,
+        hari,
+        audio_id: parseInt(document.getElementById('editJAudio').value) || null,
+        durasi_menit: parseInt(document.getElementById('editJDurasi').value) || 1,
+      };
+      
+      const res = await api('PUT', `/api/jadwal/${id}`, data);
+      if (res.status === 'ok') {
+        showToast('Jadwal berhasil diperbarui!', 'success');
+        closeModal('modalEditJadwal');
+        setTimeout(() => location.reload(), 800);
+      } else {
+        showToast(res.message || 'Gagal diperbarui', 'error');
+      }
+    });
+  }
+});
+</script>
+
 {% endblock %}

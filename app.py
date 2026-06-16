@@ -99,11 +99,13 @@ def dashboard():
     )
     libur = KalenderLibur.query.filter_by(tanggal=today).first()
     log_terbaru = LogAktivitas.query.order_by(LogAktivitas.waktu.desc()).limit(15).all()
+    audio_list = AudioFile.query.all()
 
     return render_template('dashboard.html',
         jadwal_hari_ini=jadwal_hari_ini,
         libur=libur,
         log_terbaru=log_terbaru,
+        audio_list=audio_list,
         now=datetime.now(),
     )
 
@@ -196,6 +198,27 @@ def api_jadwal():
         return jsonify({'status': 'ok', 'jadwal': jadwal.to_dict()})
     except KeyError as e:
         return jsonify({'status': 'error', 'message': f'Field wajib: {e}'}), 400
+
+
+@app.route('/api/jadwal/<int:id>', methods=['PUT'])
+def api_edit_jadwal(id):
+    jadwal = db.session.get(Jadwal, id)
+    if not jadwal:
+        return jsonify({'status': 'error', 'message': 'Jadwal tidak ditemukan'}), 404
+        
+    data = request.get_json() or {}
+    try:
+        jadwal.nama = data.get('nama', jadwal.nama).strip()
+        jadwal.waktu = data.get('waktu', jadwal.waktu)
+        jadwal.hari = int(data.get('hari', jadwal.hari))
+        jadwal.audio_id = data.get('audio_id') or None
+        jadwal.durasi_menit = int(data.get('durasi_menit', jadwal.durasi_menit))
+        
+        db.session.commit()
+        reload_jadwal()
+        return jsonify({'status': 'ok', 'jadwal': jadwal.to_dict()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 400
 
 
 @app.route('/api/jadwal/<int:id>', methods=['DELETE'])

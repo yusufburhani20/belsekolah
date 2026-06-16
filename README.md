@@ -8,7 +8,7 @@ Sistem ini mendukung pemutaran bel lokal (MP3/WAV) serta pemutaran musik/audio l
 
 ## Fitur Utama
 
-- 📅 **Manajemen Jadwal Bel**: Menambah, mengubah, mengaktifkan/menonaktifkan, dan menghapus jadwal bel dengan mudah.
+- 📅 **Manajemen Jadwal Bel**: Menambah, mengedit/mengubah, mengaktifkan/menonaktifkan, dan menghapus jadwal bel dengan mudah.
 - 📆 **Hari Aktif & Profil Harian**: Mengatur jadwal aktif berdasarkan hari tertentu (Senin–Kamis, Jumat, Sabtu, dll).
 - 🏝 **Kalender Libur Otomatis**: Menentukan tanggal libur (hari besar/libur sekolah) agar bel tidak berbunyi secara otomatis pada hari tersebut.
 - 🔔 **Manajemen Audio Lokal**: Unggah file bel sekolah Anda sendiri (WAV/MP3) langsung dari antarmuka web.
@@ -118,6 +118,33 @@ Anda dapat mengelola service bel sekolah menggunakan perintah systemd standar be
   ```bash
   sudo systemctl stop bell
   ```
+
+---
+
+## 🔊 Konfigurasi & Troubleshooting Audio di STB
+
+Secara default, output audio analog (Audio AV Jack 3.5mm) pada STB Amlogic (seperti HG860-P / HG680P) seringkali dalam kondisi senyap (*muted*) atau ber-volume 0% setelah instalasi OS Linux baru. 
+
+Ikuti perintah berikut di terminal STB Anda jika suara bel tidak keluar ketika diputar:
+
+### 1. Aktifkan Output Audio Analog (Jack AV 3.5mm)
+Jalankan perintah ini untuk memaksimalkan volume codec analog internal (`ACODEC`) dan mengaktifkan output daya fisiknya:
+```bash
+# Setel volume analog (ACODEC) ke 100%
+amixer -c 0 sset 'ACODEC' 100% unmute
+
+# Aktifkan daya fisik output jack AV
+amixer -c 0 sset 'AIU ACODEC OUT EN' on
+```
+
+### 2. Atur Volume Menggunakan Alsamixer (Tampilan Visual)
+Ketik perintah:
+```bash
+alsamixer
+```
+- Tekan **F6** lalu pilih kartu suara **S905X-P212** (atau kartu suara Amlogic Anda).
+- Pastikan slider volume **ACODEC** berada di level maksimum.
+- Pastikan status di bagian bawahnya menunjukkan **`00`** (aktif), bukan **`MM`** (*muted*). Jika menunjukkan `MM`, tekan tombol **M** pada keyboard untuk mengaktifkannya.
 
 ---
 

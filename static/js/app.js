@@ -292,7 +292,10 @@ function switchTab(name) {
   const fileInput = document.getElementById('fileInput');
   if (!zone || !fileInput) return;
 
-  zone.addEventListener('click', () => fileInput.click());
+  zone.addEventListener('click', (e) => {
+    if (e.target.closest('label') || e.target === fileInput) return;
+    fileInput.click();
+  });
   zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
   zone.addEventListener('drop', (e) => {

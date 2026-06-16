@@ -79,16 +79,10 @@ class AudioEngine:
                     )
                     logger.info(f"▶ Playing local (Windows - Device: {device}): {path}")
                 else:
-                    if ext == '.mp3':
-                        if device and device != 'default':
-                            cmd = ['mpg123', '-a', device, '-q', path]
-                        else:
-                            cmd = ['mpg123', '-q', path]
-                    else:
-                        if device and device != 'default':
-                            cmd = ['aplay', '-D', device, '-q', path]
-                        else:
-                            cmd = ['aplay', '-q', path]
+                    cmd = ['mpv', '--no-video', '--quiet']
+                    if device and device != 'default':
+                        cmd.append(f'--audio-device=alsa/{device}')
+                    cmd.append(path)
                     self._process = subprocess.Popen(
                         cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
@@ -223,7 +217,7 @@ class AudioEngine:
             return True
         try:
             subprocess.run(
-                ['amixer', '-q', 'sset', 'Master', f'{level}%'],
+                ['amixer', '-q', 'sset', 'ACODEC', f'{level}%'],
                 check=True, capture_output=True
             )
             logger.info(f"🔊 Volume set to {level}% via amixer")

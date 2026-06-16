@@ -117,10 +117,10 @@
       <label>Pilih Audio (opsional)</label>
       <select id="testAudioSelect">
         <option value="">— Bunyikan tanpa audio —</option>
-        {% for j in jadwal_hari_ini if j.audio %}
-        <option value="{{ j.audio.id }}">
-          {% if j.audio.tipe == 'youtube' %}▶{% else %}🔔{% endif %}
-          {{ j.audio.nama }}
+        {% for a in audio_list %}
+        <option value="{{ a.id }}">
+          {% if a.tipe == 'youtube' %}▶{% else %}🔔{% endif %}
+          {{ a.nama }}
         </option>
         {% endfor %}
       </select>
