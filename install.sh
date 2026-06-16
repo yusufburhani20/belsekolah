@@ -14,7 +14,7 @@ echo "════════════════════════�
 # 1. Update & install system dependencies
 echo "[1/5] Menginstall dependensi sistem..."
 apt-get update -q
-apt-get install -y python3 python3-pip mpv mpg123 alsa-utils ffmpeg
+apt-get install -y python3 python3-pip mpv mpg123 alsa-utils ffmpeg dnsmasq-base
 
 # 2. Create install directory & copy files
 echo "[2/5] Menyalin file ke $INSTALL_DIR..."
