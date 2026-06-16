@@ -117,6 +117,38 @@
       </div>
     </div>
 
+    <!-- 📶 Hotspot Wi-Fi (Access Point) -->
+    <div class="settings-card" style="margin-bottom:16px;">
+      <h2>📶 Hotspot Wi-Fi (Access Point)</h2>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:14px;">
+        Gunakan STB sebagai pemancar Wi-Fi mandiri untuk akses langsung Web UI.
+      </p>
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding: 10px; background: var(--bg-input); border-radius: var(--radius-sm); border: 1px solid var(--border);">
+        <span style="font-size:0.875rem; font-weight:600;">Status Hotspot</span>
+        <span class="net-badge disconnected" id="hotspotStatusBadge">Memuat...</span>
+      </div>
+      
+      <div class="form-group" style="margin-top:12px;">
+        <label for="hotspotSsid">Nama Wi-Fi (SSID)</label>
+        <input type="text" id="hotspotSsid" value="bell" placeholder="Contoh: bell" style="width:100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-color);">
+      </div>
+      
+      <div class="form-group" style="margin-top:12px;">
+        <label for="hotspotPassword">Sandi Hotspot (Min. 8 karakter)</label>
+        <input type="password" id="hotspotPassword" value="admin123" placeholder="Contoh: admin123" autocomplete="new-password" style="width:100%; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: var(--bg-card); color: var(--text-color);">
+      </div>
+      
+      <div class="form-group" style="display:flex; align-items:center; gap:8px; margin-top:12px; margin-bottom:16px;">
+        <input type="checkbox" id="hotspotAutostart" checked style="width:auto; margin:0; cursor:pointer;">
+        <label for="hotspotAutostart" style="margin:0; font-size:0.82rem; font-weight:normal; color:var(--text-muted); cursor:pointer;">Aktifkan Otomatis Saat Booting</label>
+      </div>
+      
+      <div style="display:flex; gap:10px;">
+        <button id="btnToggleHotspot" onclick="toggleHotspotState()" class="btn btn-primary" style="flex:1; width:100%;">📶 Aktifkan Hotspot</button>
+      </div>
+    </div>
+
     <!-- Info Sistem -->
     <div class="settings-card" style="margin-bottom:16px;">
       <h2>ℹ️ Info Sistem</h2>

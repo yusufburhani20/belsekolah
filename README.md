@@ -148,5 +148,28 @@ alsamixer
 
 ---
 
+## 📶 Panduan Wi-Fi Hotspot (Access Point) Default
+
+Untuk mempermudah konfigurasi awal tanpa perlu menghubungkan kabel LAN atau monitor ke STB, sistem ini telah dilengkapi dengan Wi-Fi Hotspot default bawaan.
+
+### 1. Hubungkan ke Hotspot Default
+Begitu STB diinstal dan dinyalakan pertama kali, ia akan memancarkan jaringan Wi-Fi mandiri:
+- **Nama Wi-Fi (SSID)**: `bell`
+- **Kata Sandi (Password)**: `admin123`
+
+### 2. Masuk ke Web UI Dashboard
+Setelah terhubung ke Wi-Fi `bell`, buka web browser di handphone atau laptop Anda dan akses alamat IP default gateway STB:
+- **URL Akses**: **[http://10.42.0.1:5000](http://10.42.0.1:5000)**
+- **User Default**: `admin`
+- **Password Default**: `admin`
+
+### 3. Mengatur Ulang atau Menonaktifkan Hotspot
+Di dalam menu **⚙️ Pengaturan** bagian **Jaringan**, Anda dapat:
+- Mengganti SSID dan Password hotspot sesuai kenyamanan.
+- Mematikan fitur Hotspot jika ingin beralih menggunakan kabel LAN atau menyambungkan STB ke Wi-Fi sekolah (sebagai client) menggunakan alamat IP statis.
+- Mengaktifkan/menonaktifkan opsi **Autostart saat booting** agar Hotspot otomatis menyala kembali ketika perangkat dinyalakan ulang.
+
+---
+
 ## Lisensi
 Projek ini dibuat untuk kepentingan sekolah dan dikembangkan secara open-source.

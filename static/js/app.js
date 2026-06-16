@@ -482,6 +482,7 @@ async function hapusLibur(id) {
       });
       
       await loadNetworkStatus();
+      await loadHotspotStatus();
       await loadUsers();
     }
   } catch (err) {
@@ -646,6 +647,118 @@ function promptConnectWifi(ssid) {
     }
   });
 })();
+
+
+// ─── Hotspot Wi-Fi Management ────────────────────────────────────────────────
+async function loadHotspotStatus() {
+  const badge = document.getElementById('hotspotStatusBadge');
+  const btn = document.getElementById('btnToggleHotspot');
+  const ssidInput = document.getElementById('hotspotSsid');
+  const passInput = document.getElementById('hotspotPassword');
+  const autostartCheck = document.getElementById('hotspotAutostart');
+  
+  if (!badge) return;
+  
+  try {
+    const status = await api('GET', '/api/network/hotspot');
+    
+    ssidInput.value = status.ssid || 'bell';
+    passInput.value = status.password || 'admin123';
+    autostartCheck.checked = !!status.autoconnect;
+    
+    if (status.active) {
+      badge.textContent = 'Aktif';
+      badge.className = 'net-badge connected';
+      btn.textContent = '🔴 Nonaktifkan Hotspot';
+      btn.className = 'btn btn-danger';
+      btn.style.width = '100%';
+      btn.dataset.active = "true";
+    } else {
+      badge.textContent = 'Nonaktif';
+      badge.className = 'net-badge disconnected';
+      btn.textContent = '📶 Aktifkan Hotspot';
+      btn.className = 'btn btn-primary';
+      btn.style.width = '100%';
+      btn.dataset.active = "false";
+    }
+  } catch (err) {
+    console.error("Gagal memuat status hotspot:", err);
+  }
+}
+
+async function toggleHotspotState() {
+  const btn = document.getElementById('btnToggleHotspot');
+  const ssidInput = document.getElementById('hotspotSsid');
+  const passInput = document.getElementById('hotspotPassword');
+  const autostartCheck = document.getElementById('hotspotAutostart');
+  
+  if (!btn) return;
+  
+  const isActive = btn.dataset.active === "true";
+  const action = isActive ? 'disable' : 'enable';
+  
+  const data = {
+    action,
+    ssid: ssidInput.value.trim(),
+    password: passInput.value.trim(),
+    autoconnect: autostartCheck.checked
+  };
+  
+  if (action === 'enable') {
+    if (data.ssid.length === 0) {
+      showToast('Nama Wi-Fi (SSID) tidak boleh kosong!', 'error');
+      return;
+    }
+    if (data.password.length < 8) {
+      showToast('Password hotspot minimal 8 karakter!', 'error');
+      return;
+    }
+  }
+  
+  btn.disabled = true;
+  btn.textContent = action === 'enable' ? 'Mengaktifkan...' : 'Menonaktifkan...';
+  
+  showToast(action === 'enable' ? 'Mengaktifkan Hotspot Wi-Fi...' : 'Menonaktifkan Hotspot Wi-Fi...', 'info');
+  
+  try {
+    const res = await api('POST', '/api/network/hotspot', data);
+    if (res.status === 'ok') {
+      showToast(`✅ ${res.message}`, 'success');
+      await loadHotspotStatus();
+      await loadNetworkStatus();
+    } else {
+      showToast(`❌ Gagal: ${res.message}`, 'error');
+      await loadHotspotStatus();
+    }
+  } catch (err) {
+    showToast(`❌ Error: ${err.message}`, 'error');
+    await loadHotspotStatus();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Hook autostart change
+document.addEventListener('DOMContentLoaded', () => {
+  const autostartCheck = document.getElementById('hotspotAutostart');
+  if (autostartCheck) {
+    autostartCheck.addEventListener('change', async () => {
+      try {
+        const res = await api('POST', '/api/network/hotspot', {
+          autoconnect: autostartCheck.checked
+        });
+        if (res.status === 'ok') {
+          showToast('✅ Status autostart berhasil diperbarui!', 'success');
+        } else {
+          showToast('❌ Gagal memperbarui status autostart', 'error');
+        }
+      } catch (err) {
+        showToast(`❌ Error: ${err.message}`, 'error');
+      }
+    });
+  }
+});
+
 
 // ─── User Management functions ──────────────────────────────────────────────
 async function loadUsers() {

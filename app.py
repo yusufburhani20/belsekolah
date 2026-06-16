@@ -647,6 +647,99 @@ def connect_wifi(ssid, password):
             return False, f"Error: {str(e)}"
 
 
+def get_wifi_interface():
+    import subprocess
+    try:
+        res = subprocess.run(['nmcli', '-t', '-f', 'DEVICE,TYPE', 'device'], capture_output=True, text=True)
+        if res.returncode == 0:
+            for line in res.stdout.strip().splitlines():
+                parts = line.split(':')
+                if len(parts) >= 2 and parts[1] == 'wifi':
+                    return parts[0]
+    except Exception:
+        pass
+    return 'wlan0'
+
+
+def get_hotspot_status():
+    import subprocess
+    status = {
+        'active': False,
+        'ssid': 'bell',
+        'password': 'admin123',
+        'autoconnect': True
+    }
+    
+    if os.name == 'nt':
+        status['active'] = getattr(app, '_mock_hotspot_active', True)
+        status['autoconnect'] = getattr(app, '_mock_hotspot_autoconnect', True)
+        return status
+
+    try:
+        res_active = subprocess.run(['nmcli', '-t', '-f', 'NAME,TYPE,DEVICE', 'connection', 'show', '--active'], capture_output=True, text=True)
+        if res_active.returncode == 0:
+            for line in res_active.stdout.strip().splitlines():
+                parts = line.split(':')
+                if len(parts) >= 2 and parts[0] == 'Hotspot':
+                    status['active'] = True
+                    break
+                    
+        res_details = subprocess.run(['nmcli', '-t', '-f', 'connection.id,connection.autoconnect,802-11-wireless.ssid,802-11-wireless-security.psk', 'connection', 'show', 'Hotspot'], capture_output=True, text=True)
+        if res_details.returncode == 0:
+            for line in res_details.stdout.strip().splitlines():
+                if ':' in line:
+                    key, val = line.split(':', 1)
+                    if key == '802-11-wireless.ssid':
+                        status['ssid'] = val
+                    elif key == '802-11-wireless-security.psk':
+                        status['password'] = val
+                    elif key == 'connection.autoconnect':
+                        status['autoconnect'] = (val.lower() == 'yes')
+    except Exception as e:
+        logger.error(f"Error getting Hotspot status: {e}")
+        
+    return status
+
+
+def configure_hotspot(action, ssid='bell', password='admin123', autoconnect=True):
+    import subprocess
+    if os.name == 'nt':
+        app._mock_hotspot_active = (action == 'enable')
+        app._mock_hotspot_autoconnect = autoconnect
+        return True, f"Hotspot {action}d successfully (Simulasi Windows)"
+
+    if action == 'enable':
+        ifname = get_wifi_interface()
+        if not ifname:
+            return False, "Tidak ditemukan interface Wi-Fi pada STB!"
+            
+        subprocess.run(['nmcli', 'connection', 'delete', 'Hotspot'], capture_output=True)
+        
+        cmd = ['nmcli', 'device', 'wifi', 'hotspot', 'ssid', ssid, 'password', password, 'ifname', ifname, 'con-name', 'Hotspot']
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        
+        if res.returncode == 0:
+            autoconnect_val = 'yes' if autoconnect else 'no'
+            subprocess.run(['nmcli', 'connection', 'modify', 'Hotspot', 'connection.autoconnect', autoconnect_val], capture_output=True)
+            return True, f"Hotspot berhasil diaktifkan dengan SSID '{ssid}'"
+        else:
+            err = res.stderr.strip() or res.stdout.strip() or "Error tidak diketahui"
+            return False, f"Gagal mengaktifkan Hotspot: {err}"
+            
+    elif action == 'disable':
+        res = subprocess.run(['nmcli', 'connection', 'down', 'Hotspot'], capture_output=True, text=True, timeout=15)
+        subprocess.run(['nmcli', 'connection', 'modify', 'Hotspot', 'connection.autoconnect', 'no'], capture_output=True)
+        
+        if res.returncode == 0:
+            return True, "Hotspot berhasil dinonaktifkan"
+        else:
+            status = get_hotspot_status()
+            if not status['active']:
+                return True, "Hotspot sudah tidak aktif"
+            err = res.stderr.strip() or res.stdout.strip() or "Error tidak diketahui"
+            return False, f"Gagal menonaktifkan Hotspot: {err}"
+
+
 @app.route('/api/settings', methods=['GET', 'POST'])
 def api_settings():
     if request.method == 'GET':
@@ -706,6 +799,50 @@ def api_network_wifi_connect():
         db.session.add(log)
         db.session.commit()
         return jsonify({'status': 'error', 'message': msg})
+
+
+@app.route('/api/network/hotspot', methods=['GET', 'POST'])
+def api_network_hotspot():
+    if request.method == 'GET':
+        return jsonify(get_hotspot_status())
+        
+    data = request.get_json() or {}
+    action = data.get('action')
+    ssid = data.get('ssid', 'bell').strip()
+    password = data.get('password', 'admin123').strip()
+    autoconnect = bool(data.get('autoconnect', True))
+    
+    if action not in ['enable', 'disable']:
+        if 'autoconnect' in data:
+            if os.name == 'nt':
+                app._mock_hotspot_autoconnect = autoconnect
+                return jsonify({'status': 'ok', 'message': 'Pengaturan disimpan (Simulasi)'})
+            else:
+                import subprocess
+                val = 'yes' if autoconnect else 'no'
+                res = subprocess.run(['nmcli', 'connection', 'modify', 'Hotspot', 'connection.autoconnect', val], capture_output=True)
+                if res.returncode == 0:
+                    return jsonify({'status': 'ok', 'message': 'Pengaturan autostart berhasil diubah'})
+                else:
+                    return jsonify({'status': 'error', 'message': 'Hotspot profile belum dikonfigurasi'}), 400
+        return jsonify({'status': 'error', 'message': 'Parameter action wajib diisi (enable/disable)'}), 400
+        
+    if action == 'enable' and len(password) < 8:
+        return jsonify({'status': 'error', 'message': 'Password hotspot minimal 8 karakter!'}), 400
+        
+    success, msg = configure_hotspot(action, ssid, password, autoconnect)
+    
+    log = LogAktivitas(
+        aksi=f"{'Aktifkan' if action == 'enable' else 'Nonaktifkan'} Hotspot: {ssid}", 
+        status="OK" if success else "ERROR"
+    )
+    db.session.add(log)
+    db.session.commit()
+    
+    if success:
+        return jsonify({'status': 'ok', 'message': msg})
+    else:
+        return jsonify({'status': 'error', 'message': msg}), 500
 
 
 # ─── Authentication Proteksi ──────────────────────────────────────────────────

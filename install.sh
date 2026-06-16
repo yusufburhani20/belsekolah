@@ -34,11 +34,31 @@ systemctl daemon-reload
 systemctl enable bell
 systemctl start bell
 
-# 5. Done
+# 5. Konfigurasi default hotspot
+echo "Menyiapkan default Hotspot Wi-Fi..."
+if command -v nmcli &> /dev/null; then
+  WIFI_IFACE=$(nmcli -t -f DEVICE,TYPE device | grep :wifi | head -n1 | cut -d: -f1)
+  if [ -n "$WIFI_IFACE" ]; then
+    echo "Ditemukan interface Wi-Fi: $WIFI_IFACE"
+    nmcli connection delete Hotspot &>/dev/null || true
+    if nmcli device wifi hotspot ssid bell password admin123 ifname "$WIFI_IFACE" con-name Hotspot; then
+      echo "Default hotspot 'bell' berhasil dibuat!"
+      nmcli connection modify Hotspot connection.autoconnect yes
+    else
+      echo "Gagal membuat default hotspot otomatis."
+    fi
+  else
+    echo "Tidak ditemukan interface Wi-Fi untuk hotspot."
+  fi
+else
+  echo "nmcli tidak ditemukan. Lewati konfigurasi hotspot."
+fi
+
+# 6. Done
 echo ""
-echo "[5/5] ✅ Instalasi selesai!"
+echo "[6/6] ✅ Instalasi selesai!"
 echo ""
-echo "  Web UI tersedia di: http://$(hostname -I | awk '{print $1}'):5000"
+echo "  Web UI tersedia di: http://\$(hostname -I | awk '{print \$1}'):5000"
 echo ""
 echo "  Perintah berguna:"
 echo "  systemctl status bell      → cek status"
