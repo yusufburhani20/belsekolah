@@ -50,9 +50,10 @@ class AudioEngine:
         self._stop_timer.start()
 
     def _ensure_hardware_audio_on(self):
-        """Ensure analog codec is unmuted and AV output jack is powered ON (Linux only)."""
+        """Ensure analog codec is unmuted, active, and AV output jack is powered ON (Linux only)."""
         if os.name != 'nt':
             try:
+                subprocess.run(['amixer', '-c', '0', '-q', 'sset', 'AIU ACODEC SRC', 'I2S'], capture_output=True)
                 subprocess.run(['amixer', '-c', '0', '-q', 'sset', 'AIU ACODEC OUT EN', 'on'], capture_output=True)
                 subprocess.run(['amixer', '-c', '0', '-q', 'sset', 'ACODEC', 'unmute'], capture_output=True)
             except Exception as e:
@@ -227,6 +228,10 @@ class AudioEngine:
             logger.info(f"🔊 Volume control is simulated on Windows (requested {level}%)")
             return True
         try:
+            subprocess.run(
+                ['amixer', '-c', '0', '-q', 'sset', 'AIU ACODEC SRC', 'I2S'],
+                capture_output=True
+            )
             subprocess.run(
                 ['amixer', '-c', '0', '-q', 'sset', 'ACODEC', f'{level}%', 'unmute'],
                 check=True, capture_output=True
